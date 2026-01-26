@@ -60,12 +60,27 @@ const selectProject = async (project: any) => {
   // fetchCodex(project.id); 
 };
 
-  const toggleChapter = async (chapterId: any) => {
-    if (!scenes[chapterId]) {
-      const { data } = await supabase.from('scenes').select('*').eq('chapter_id', chapterId).order('ord');
+const toggleChapter = async (chapterId: string) => {
+  // 1. Data ophalen als we die nog niet hebben
+  if (!scenes[chapterId]) {
+    const { data, error } = await supabase
+      .from('scenes')
+      .select('*')
+      .eq('chapter_id', chapterId)
+      .order('ord');
+    
+    if (!error && data) {
       setScenes((prev: any) => ({ ...prev, [chapterId]: data }));
     }
-  };
+  }
+
+  // 2. De visuele status toggelen (open/dicht)
+  setExpandedChapters((prev) => 
+    prev.includes(chapterId) 
+      ? prev.filter(id => id !== chapterId) // Verwijder uit lijst = inklappen
+      : [...prev, chapterId]               // Voeg toe aan lijst = uitklappen
+  );
+};
 
   const saveProse = useCallback(
     debounce(async (sceneId, newText) => {
@@ -213,6 +228,8 @@ const addScene = async (chapterId: string) => {
 };
 
 const [importText, setImportText] = useState("");
+const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
+
 
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
@@ -240,92 +257,87 @@ const [importText, setImportText] = useState("");
         {/* Hoofdstukken lijst */}
         {selectedProject?.id === p.id &&
           chapters.map((c) => (
-            <div key={c.id} className="ml-3 space-y-1">
-              {/* Hoofdstuk Item */}
-              <div className="group flex items-center justify-between gap-2 p-1.5 rounded hover:bg-stone-100 transition-all">
-                {editingId === c.id ? (
-                  <input
-                    autoFocus
-                    className="flex-1 bg-white text-sm border border-orange-300 rounded px-1 outline-none"
-                    value={tempTitle}
-                    onChange={(e) => setTempTitle(e.target.value)}
-                    onBlur={() => renameChapter(c.id, tempTitle)}
-                    onKeyDown={(e) => e.key === "Enter" && renameChapter(c.id, tempTitle)}
-                  />
-                ) : (
-                  <>
-                    <button
-                      onClick={() => toggleChapter(c.id)}
-                      className="flex-1 text-left text-sm flex items-center gap-1 text-stone-700 font-medium truncate"
-                    >
-                      <ChevronDown
-                        size={14}
-                        className={`${scenes[c.id] ? "" : "-rotate-90"} transition-transform`}
-                      />
-                      H{c.ord}: {c.title}
-                    </button>
+<div key={c.id} className="ml-3 space-y-1">
+  {/* Hoofdstuk Item */}
+  <div className="group flex items-center justify-between gap-2 p-1.5 rounded hover:bg-stone-100 transition-all">
+    {editingId === c.id ? (
+      <input
+        autoFocus
+        className="flex-1 bg-white text-sm border border-orange-300 rounded px-1 outline-none"
+        value={tempTitle}
+        onChange={(e) => setTempTitle(e.target.value)}
+        onBlur={() => renameChapter(c.id, tempTitle)}
+        onKeyDown={(e) => e.key === "Enter" && renameChapter(c.id, tempTitle)}
+      />
+    ) : (
+      <>
+        <button
+          onClick={() => toggleChapter(c.id)}
+          className="flex-1 text-left text-sm flex items-center gap-1 text-stone-700 font-medium truncate"
+        >
+          {/* PAS HIER DE CLASSNAME AAN */}
+          <ChevronDown
+            size={14}
+            className={`${expandedChapters.includes(c.id) ? "" : "-rotate-90"} transition-transform`}
+          />
+          H{c.ord}: {c.title}
+        </button>
 
+        <button
+          onClick={() => { setEditingId(c.id); setTempTitle(c.title); }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900"
+        >
+          <PenTool size={12} />
+        </button>
+      </>
+    )}
+  </div>
 
-
-                    <button
-                      onClick={() => { setEditingId(c.id); setTempTitle(c.title); }}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900"
-                    >
-                      <PenTool size={12} />
-                    </button>
-
-                  </>
-                )}
-              </div>
-
-              {/* Scènes onder dit hoofdstuk */}
-              {scenes[c.id] && (
-                <div className="ml-5 border-l border-stone-400 pl-2 space-y-0.5">
-                  {scenes[c.id].map((s: any) => (
-                    <div key={s.id} className="group/scene flex items-center justify-between gap-2 rounded hover:bg-stone-300/50 pr-1 transition-all">
-                      {editingId === s.id ? (
-                        <input
-                          autoFocus
-                          className="flex-1 bg-white text-xs border border-orange-200 rounded px-1 outline-none"
-                          value={tempTitle}
-                          onChange={(e) => setTempTitle(e.target.value)}
-                          onBlur={() => renameScene(c.id, s.id, tempTitle)}
-                          onKeyDown={(e) => e.key === "Enter" && renameScene(c.id, s.id, tempTitle)}
-                        />
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => { setSelectedScene(s); setProse(s.prose || ""); }}
-                            className={`flex-1 text-left p-1 text-xs rounded truncate ${
-                              selectedScene?.id === s.id
-                                ? "font-bold text-orange-900"
-                                : "text-stone-500"
-                            }`}
-                          >
-                            {s.title}
-                          </button>
-                          <button
-                            onClick={() => { setEditingId(s.id); setTempTitle(s.title); }}
-                            className="opacity-0 group-hover/scene:opacity-100 p-1 text-stone-400 hover:text-orange-900"
-                          >
-                            <PenTool size={10} />
-                          </button>
-                        </>
-                      )}
-                      
-                    </div>
-                  ))}
-<button 
-  onClick={() => addScene(c.id)} 
-className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-700 font-medium transition"
-                        >
-                       + Nieuwe Scene
-</button>
-
-                </div>
-              )}
-
-            </div>
+  {/* PAS HIER DE CHECK AAN: scenes[c.id] wordt expandedChapters.includes(c.id) */}
+  {expandedChapters.includes(c.id) && (
+    <div className="ml-5 border-l border-stone-400 pl-2 space-y-0.5">
+      {scenes[c.id]?.map((s: any) => (
+        <div key={s.id} className="group/scene flex items-center justify-between gap-2 rounded hover:bg-stone-300/50 pr-1 transition-all">
+          {editingId === s.id ? (
+            <input
+              autoFocus
+              className="flex-1 bg-white text-xs border border-orange-200 rounded px-1 outline-none"
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onBlur={() => renameScene(c.id, s.id, tempTitle)}
+              onKeyDown={(e) => e.key === "Enter" && renameScene(c.id, s.id, tempTitle)}
+            />
+          ) : (
+            <>
+              <button
+                onClick={() => { setSelectedScene(s); setProse(s.prose || ""); }}
+                className={`flex-1 text-left p-1 text-xs rounded truncate ${
+                  selectedScene?.id === s.id
+                    ? "font-bold text-orange-900"
+                    : "text-stone-500"
+                }`}
+              >
+                {s.title}
+              </button>
+              <button
+                onClick={() => { setEditingId(s.id); setTempTitle(s.title); }}
+                className="opacity-0 group-hover/scene:opacity-100 p-1 text-stone-400 hover:text-orange-900"
+              >
+                <PenTool size={10} />
+              </button>
+            </>
+          )}
+        </div>
+      ))}
+      <button 
+        onClick={() => addScene(c.id)} 
+        className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-700 font-medium transition"
+      >
+        + Nieuwe Scene
+      </button>
+    </div>
+  )}
+</div>
             
           ))}
                     <button 
@@ -402,7 +414,8 @@ className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-
       <p className="text-sm text-stone-700 mt-0.5">{selectedScene.pov || "—"}</p>
     )}
   </section>
-
+</div>
+<div className="space-y-4 mt-4">
   {/* SETTING */}
   <section className="group">
     <div className="flex justify-between items-center">
@@ -474,8 +487,8 @@ className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-
   </section>
 
   {/* SETUP & PAYOFF GRID */}
-  <div className="grid grid-cols-2 gap-4">
-    <section className="group bg-stone-100/30 p-2 rounded">
+
+    <section className="group">
       <div className="flex justify-between items-center">
         <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Setup</label>
         {editingId !== `edit-setup` && (
@@ -491,7 +504,9 @@ className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-
       )}
     </section>
 
-    <section className="group bg-stone-100/30 p-2 rounded">
+    
+
+    <section className="group">
       <div className="flex justify-between items-center">
         <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Payoff</label>
         {editingId !== `edit-payoff` && (
@@ -506,7 +521,7 @@ className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-
         <p className="text-xs text-stone-600 mt-1">{selectedScene.payoff || "—"}</p>
       )}
     </section>
-  </div>
+
 
   {/* SAMENVATTING */}
   <section className="group bg-orange-50/40 p-3 rounded border border-orange-100/50 shadow-sm">
