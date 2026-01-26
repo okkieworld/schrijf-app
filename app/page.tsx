@@ -91,22 +91,36 @@ Proza:
   };
 
 const handleJsonImport = async (jsonString: string) => {
-    // Voeg deze regel toe: als er geen selectedScene is, doe dan niets.
-    if (!selectedScene) return; 
+  if (!selectedScene) return; 
 
-    try {
-      const data = JSON.parse(jsonString);
-      // Gebruik een optionele chaining (?.) of vertrouw op de return hierboven
-      const { error } = await supabase.from('scenes').update({ ...data }).eq('id', (selectedScene as any).id);
-      
-      if (!error) {
-          alert("Scènekaart succesvol bijgewerkt!");
-          setSelectedScene((prev: any) => ({ ...prev, ...data }));
-      }
-    } catch (e) {
-      if (jsonString.trim() !== "") alert("Ongeldige JSON. Kopieer alleen de tekst tussen de { }.");
+  try {
+    const data = JSON.parse(jsonString);
+    const { error } = await supabase
+      .from('scenes')
+      .update({ ...data })
+      .eq('id', (selectedScene as any).id);
+    
+    if (!error) {
+        alert("Scènekaart succesvol bijgewerkt!");
+        setSelectedScene((prev: any) => ({ ...prev, ...data }));
+        
+        // HIER MAKEN WE HET VELD LEEG
+        setImportText(""); 
+
+        // Update ook de sidebar lijst
+        const chapterId = selectedScene.chapter_id;
+        setScenes((prev: any) => ({
+          ...prev,
+          [chapterId]: prev[chapterId].map((s: any) => 
+            s.id === selectedScene.id ? { ...s, ...data } : s
+          )
+        }));
     }
-  };
+  } catch (e) {
+    // We geven pas een error als de tekst substantieel is en echt niet klopt
+    if (jsonString.length > 10) console.log("Wachten op geldige JSON...");
+  }
+};
 
   // State voor bewerken
   const [editingId, setEditingId] = useState<any>(null); 
@@ -149,6 +163,56 @@ const handleJsonImport = async (jsonString: string) => {
     }
   };
 
+const addChapter = async (title: string) => {
+  // Gebruik de state die al bovenaan je component staat
+  if (!selectedProject?.id) {
+    alert("Selecteer eerst een project!");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('chapters')
+    .insert([{ 
+      title: title, 
+      ord: chapters.length + 1,
+      project_id: selectedProject.id // Pakt dynamisch het geselecteerde project
+    }])
+    .select();
+
+  if (error) {
+    console.error('Fout bij hoofdstuk aanmaken:', error.message);
+  } else if (data && data[0]) {
+    setChapters([...chapters, data[0]]);
+  }
+};
+
+const addScene = async (chapterId: string) => {
+  // We gebruiken de 'scenes' state die als Record<string, any> is gedefinieerd
+  const currentScenesForChapter = scenes[chapterId] || [];
+  const newOrd = currentScenesForChapter.length + 1;
+
+  const { data, error } = await supabase
+    .from('scenes')
+    .insert([{ 
+      chapter_id: chapterId, 
+      title: 'Nieuwe Scène', 
+      prose: '', // Gebruikt 'prose' zoals eerder vastgesteld
+      ord: newOrd 
+    }])
+    .select();
+
+  if (error) {
+    console.error('Fout bij scène aanmaken:', error.message);
+  } else if (data && data[0]) {
+    // Update de Record state voor het specifieke hoofdstuk
+    setScenes({
+      ...scenes,
+      [chapterId]: [...currentScenesForChapter, data[0]]
+    });
+  }
+};
+
+const [importText, setImportText] = useState("");
 
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
@@ -200,12 +264,16 @@ const handleJsonImport = async (jsonString: string) => {
                       />
                       H{c.ord}: {c.title}
                     </button>
+
+
+
                     <button
                       onClick={() => { setEditingId(c.id); setTempTitle(c.title); }}
                       className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900"
                     >
                       <PenTool size={12} />
                     </button>
+
                   </>
                 )}
               </div>
@@ -244,12 +312,31 @@ const handleJsonImport = async (jsonString: string) => {
                           </button>
                         </>
                       )}
+                      
                     </div>
                   ))}
+<button 
+  onClick={() => addScene(c.id)} 
+className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-700 font-medium transition"
+                        >
+                       + Nieuwe Scene
+</button>
+
                 </div>
               )}
+
             </div>
+            
           ))}
+                    <button 
+                       onClick={() => {
+    const title = prompt("Hoofdstuk titel:");
+    if (title) addChapter(title);
+  }}
+                       className="px-3 py-1 text-xs bg-stone-200 hover:bg-stone-300 rounded text-stone-700 font-medium transition"
+                        >
+                       + Hoofdstuk
+                     </button>
       </div>
     ))}
   </div>
@@ -443,11 +530,18 @@ const handleJsonImport = async (jsonString: string) => {
                         <button onClick={copyAiPrompt} className="w-full py-2 bg-stone-800 text-white text-[10px] uppercase font-bold tracking-widest rounded hover:bg-black">
                           Copy AI Prompt
                         </button>
-                        <textarea 
-                          placeholder="Plak JSON hier..."
-                          className="w-full h-20 text-[10px] p-2 bg-white border border-stone-200 rounded font-mono outline-none shadow-inner"
-                          onChange={(e) => handleJsonImport(e.target.value)}
-                        />
+<textarea 
+  placeholder="Plak JSON hier..."
+  className="w-full h-20 text-[10px] p-2 bg-white border border-stone-200 rounded font-mono outline-none shadow-inner"
+  value={importText} // Dit zorgt dat we het veld kunnen leegmaken
+  onChange={(e) => {
+    const val = e.target.value;
+    setImportText(val); // Update de tekst in het veld
+    if (val.trim().endsWith('}')) { // Trigger import pas als de JSON compleet lijkt
+       handleJsonImport(val);
+    }
+  }}
+/>
                       </div>
                     </div>
                   ) : (
