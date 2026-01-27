@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { debounce } from 'lodash';
 import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive } from 'lucide-react';
 import Link from 'next/link';
+
 
 // Deze variabelen worden één keer buiten de component aangemaakt
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -82,14 +83,21 @@ const toggleChapter = async (chapterId: string) => {
   );
 };
 
-  const saveProse = useCallback(
-    debounce(async (sceneId, newText) => {
+const saveProse = useMemo(
+  () =>
+    debounce(async (sceneId: string, newText: string) => {
+      if (!sceneId) return;
       setIsSaving(true);
-      await supabase.from('scenes').update({ prose: newText }).eq('id', sceneId);
+      const { error } = await supabase
+        .from('scenes')
+        .update({ prose: newText })
+        .eq('id', sceneId);
+      
+      if (error) console.error("Opslaan mislukt:", error);
       setIsSaving(false);
-    }, 1500),
-    []
-  );
+    }, 1000), // 1 seconde is vaak net wat vlotter dan 1.5
+  []
+);
 
   const copyAiPrompt = () => {
     const prompt = `Je bent een redacteur die bestaand proza terugvertaalt naar een scènekaart.
@@ -141,23 +149,36 @@ const handleJsonImport = async (jsonString: string) => {
   const [editingId, setEditingId] = useState<any>(null); 
   const [tempTitle, setTempTitle] = useState(""); 
 
-  const updateSceneField = async (sceneId: any, field: string, newValue: any) => {
-    const { error } = await supabase
-      .from('scenes')
-      .update({ [field]: newValue })
-      .eq('id', sceneId);
+const updateSceneField = async (sceneId: any, field: string, newValue: any) => {
+  const { error } = await supabase
+    .from('scenes')
+    .update({ [field]: newValue })
+    .eq('id', sceneId);
 
-    if (!error) {
-      setSelectedScene((prev: any) => ({
+  if (!error) {
+    // 1. Update de actieve scènekaart
+    setSelectedScene((prev: any) => ({
+      ...prev,
+      [field]: newValue
+    }));
+
+    // 2. Update de zijbalk (zodat status-bolletjes en titels direct verspringen)
+    if (selectedScene?.chapter_id) {
+      const chapterId = selectedScene.chapter_id;
+      setScenes((prev: any) => ({
         ...prev,
-        [field]: newValue
+        [chapterId]: (prev[chapterId] || []).map((s: any) => 
+          s.id === sceneId ? { ...s, [field]: newValue } : s
+        )
       }));
-      setEditingId(null);
-    } else {
-      console.error("Fout bij updaten veld:", error.message);
-      alert("Opslaan mislukt: " + error.message);
     }
-  };
+
+    setEditingId(null);
+  } else {
+    console.error("Fout bij updaten veld:", error.message);
+    alert("Opslaan mislukt: " + error.message);
+  }
+};
 
   const renameChapter = async (id: any, newTitle: string) => {
     const { error } = await supabase.from('chapters').update({ title: newTitle }).eq('id', id);
@@ -229,7 +250,28 @@ const addScene = async (chapterId: string) => {
 
 const [importText, setImportText] = useState("");
 const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
+const STATUS_OPTIONS = [
+  "Idee", 
+  "Outline", 
+  "Concept", 
+  "Eerste Versie", 
+  "Redactie", 
+  "Voltooid", 
+  "Archief"
+];
 
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Idee': return 'bg-purple-400';
+    case 'Outline': return 'bg-blue-400';
+    case 'Concept': return 'bg-amber-400';
+    case 'Eerste Versie': return 'bg-stone-500';
+    case 'Redactie': return 'bg-orange-500';
+    case 'Voltooid': return 'bg-green-500';
+    case 'Archief': return 'bg-red-400';
+    default: return 'bg-stone-200';
+  }
+};
 
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
@@ -297,37 +339,46 @@ const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
   {expandedChapters.includes(c.id) && (
     <div className="ml-5 border-l border-stone-400 pl-2 space-y-0.5">
       {scenes[c.id]?.map((s: any) => (
-        <div key={s.id} className="group/scene flex items-center justify-between gap-2 rounded hover:bg-stone-300/50 pr-1 transition-all">
-          {editingId === s.id ? (
-            <input
-              autoFocus
-              className="flex-1 bg-white text-xs border border-orange-200 rounded px-1 outline-none"
-              value={tempTitle}
-              onChange={(e) => setTempTitle(e.target.value)}
-              onBlur={() => renameScene(c.id, s.id, tempTitle)}
-              onKeyDown={(e) => e.key === "Enter" && renameScene(c.id, s.id, tempTitle)}
-            />
-          ) : (
-            <>
-              <button
-                onClick={() => { setSelectedScene(s); setProse(s.prose || ""); }}
-                className={`flex-1 text-left p-1 text-xs rounded truncate ${
-                  selectedScene?.id === s.id
-                    ? "font-bold text-orange-900"
-                    : "text-stone-500"
-                }`}
-              >
-                {s.title}
-              </button>
-              <button
-                onClick={() => { setEditingId(s.id); setTempTitle(s.title); }}
-                className="opacity-0 group-hover/scene:opacity-100 p-1 text-stone-400 hover:text-orange-900"
-              >
-                <PenTool size={10} />
-              </button>
-            </>
-          )}
-        </div>
+<div key={s.id} className="group/scene flex items-center justify-between gap-2 rounded hover:bg-stone-300/50 pr-1 transition-all">
+  {editingId === s.id ? (
+    <input
+      autoFocus
+      className="flex-1 bg-white text-xs border border-orange-200 rounded px-1 outline-none ml-5"
+      value={tempTitle}
+      onChange={(e) => setTempTitle(e.target.value)}
+      onBlur={() => updateSceneField(s.id, 'title', tempTitle)}
+      onKeyDown={(e) => e.key === "Enter" && updateSceneField(s.id, 'title', tempTitle)}
+    />
+  ) : (
+    <>
+      {/* LINKERDEEL: Bolletje eerst, dan de Titel */}
+      <button
+        onClick={() => { setSelectedScene(s); setProse(s.prose || ""); }}
+        className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
+          selectedScene?.id === s.id
+            ? "font-bold text-orange-900"
+            : "text-stone-500"
+        }`}
+      >
+        {/* Het statusbolletje staat nu vooraan */}
+        <div 
+          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 shadow-sm ${getStatusColor(s.status)}`} 
+          title={`Status: ${s.status || 'Idee'}`}
+        />
+        
+        <span className="truncate">{s.title}</span>
+      </button>
+
+      {/* RECHTERDEEL: De PenTool (alleen bij hover) */}
+      <button
+        onClick={() => { setEditingId(s.id); setTempTitle(s.title); }}
+        className="opacity-0 group-hover/scene:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all flex-shrink-0"
+      >
+        <PenTool size={10} />
+      </button>
+    </>
+  )}
+</div>
       ))}
       <button 
         onClick={() => addScene(c.id)} 
@@ -396,8 +447,34 @@ const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
                       <div className="flex items-center gap-2 text-stone-400 border-b pb-2 uppercase text-[10px] font-bold tracking-widest">
                         <Info size={14} /> Scène-Analyse
                       </div>
+{/* Status Dropdown in de Scènekaart */}
+<div className="mt-4 pt-4 border-t border-stone-100">
+{/* STATUS SELECTIE */}
+<section className="group border-b border-stone-100 pb-4">
+<div className="flex items-center gap-2 mt-2">
+  <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
+    Status:
+  </label>
+  <div className="inline-flex items-center gap-2 bg-stone-100/50 px-2 py-1 rounded border border-stone-200">
+    <select 
+      value={selectedScene?.status || "Idee"}
+      onChange={(e) => updateSceneField(selectedScene.id, 'status', e.target.value)}
+      className="bg-transparent border-none text-[11px] text-stone-600 font-bold focus:ring-0 cursor-pointer p-0 pr-5 m-0"
+    >
+      {STATUS_OPTIONS.map((opt) => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+    <div className={`w-2 h-2 rounded-full shadow-sm ${getStatusColor(selectedScene?.status)}`} />
+  </div>
+</div>
+  
+</section>
+
+</div>
                       
                       <div className="grid grid-cols-2 gap-4">
+  
   {/* POV */}
   <section className="group">
     <div className="flex justify-between items-center">
@@ -580,8 +657,13 @@ const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
                 <textarea 
                   className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block"
                   value={prose}
-                  onChange={(e) => { setProse(e.target.value); saveProse(selectedScene.id, e.target.value); }}
-                  placeholder="Begin met schrijven..."
+onChange={(e) => {
+  const val = e.target.value;
+  setProse(val);
+  if (selectedScene?.id) {
+    saveProse(selectedScene.id, val);
+  }
+}}                  placeholder="Begin met schrijven..."
                 />
               </section>
             </div>
