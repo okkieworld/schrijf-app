@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive } from 'lucide-react';
 import Link from 'next/link';
 
-
+// test commit
 // Deze variabelen worden één keer buiten de component aangemaakt
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
