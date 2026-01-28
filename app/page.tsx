@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { debounce } from 'lodash';
-import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive } from 'lucide-react';
+import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 // test commit
@@ -99,19 +99,33 @@ const saveProse = useMemo(
   []
 );
 
-  const copyAiPrompt = () => {
-    const prompt = `Je bent een redacteur die bestaand proza terugvertaalt naar een scènekaart.
+const copyAiPrompt = () => {
+  const prompt = `Je bent een redacteur die bestaand proza terugvertaalt naar een compacte scènekaart.
 Geef de output uitsluitend als geldig JSON. Schrijf in het Nederlands.
+
+INSTRUCTIE VOOR SETTING: 
+Houd de 'setting' extreem kort en krachtig. 
+Format: [Fysieke Locatie], [Tijdstip]. 
+Voorbeelden: "Veldlab, middag", "Studeerkamer Hugo, nacht", "Opgraving Milos, ochtendschemer".
+
 Gebruik exact dit schema:
 {
-  "pov": "", "setting": "", "purpose": "", "conflict": "", 
-  "outcome": "", "setup": "", "payoff": "", "summary": ""
+  "pov": "Naam personage", 
+  "setting": "Locatie, Tijdstip", 
+  "purpose": "Doel van de scène", 
+  "conflict": "Het obstakel", 
+  "outcome": "Resultaat", 
+  "setup": "Geplante aanwijzing", 
+  "payoff": "Inlossing van eerdere aanwijzing", 
+  "summary": "Beknopte samenvatting van max 4 regels"
 }
+
 Proza:
 """${prose}"""`;
-    navigator.clipboard.writeText(prompt);
-    alert("Prompt voor de Vlotte Plot Scène (A) gekopieerd!");
-  };
+
+  navigator.clipboard.writeText(prompt);
+  alert("Prompt gekopieerd!");
+};
 
 const handleJsonImport = async (jsonString: string) => {
   if (!selectedScene) return; 
@@ -273,6 +287,33 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const deleteScene = async (sceneId: string, chapterId: string) => {
+  // Bevestiging vragen aan de gebruiker
+  if (!confirm("Weet je zeker dat je deze scène wilt verwijderen?")) return;
+
+  const { error } = await supabase
+    .from('scenes')
+    .delete()
+    .eq('id', sceneId);
+
+  if (!error) {
+    // 1. Update de zijbalk state
+    setScenes((prev: any) => ({
+      ...prev,
+      [chapterId]: prev[chapterId].filter((s: any) => s.id !== sceneId)
+    }));
+
+    // 2. Als de verwijderde scène geselecteerd was, deselecteer deze
+    if (selectedScene?.id === sceneId) {
+      setSelectedScene(null);
+      setProse("");
+    }
+  } else {
+    console.error("Fout bij verwijderen scène:", error.message);
+    alert("Verwijderen mislukt.");
+  }
+};
+
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
       
@@ -403,7 +444,16 @@ const getStatusColor = (status: string) => {
       </div>
     ))}
   </div>
-
+  {/* Footer Beheer Link */}
+  <div className="p-4 border-t border-stone-300 bg-stone-200/50">
+    <Link
+      href="/architectuur"
+      className="flex items-center gap-2 w-full p-2 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-300 hover:text-orange-900 transition-all"
+    >
+      <Layout size={18} />
+      <span>Architectuur</span>
+    </Link>
+  </div>
   {/* Footer Beheer Link */}
   <div className="p-4 border-t border-stone-300 bg-stone-200/50">
     <Link
@@ -418,63 +468,67 @@ const getStatusColor = (status: string) => {
 
       {/* RECHTERKANT: Editor & Inspector */}
 <main className="flex-1 flex flex-col h-full">
-        {selectedScene ? (
-          <>
-            <header className="h-14 border-b border-stone-200 bg-white flex items-center px-6 justify-between shadow-sm">
-              <h2 className="font-serif italic text-stone-600 truncate">{selectedScene.title}</h2>
-              <span className="text-[10px] uppercase tracking-widest text-stone-400">
-                {isSaving ? 'Synchroniseren...' : 'Veilig opgeslagen'}
-              </span>
-            </header>
+  {selectedScene ? (
+    <>
+      <header className="h-14 border-b border-stone-200 bg-white flex items-center px-6 justify-between shadow-sm">
+        <h2 className="font-serif italic text-stone-600 truncate">{selectedScene.title}</h2>
+        <span className="text-[10px] uppercase tracking-widest text-stone-400">
+          {isSaving ? 'Synchroniseren...' : 'Veilig opgeslagen'}
+        </span>
+      </header>
 
-            <div className="flex-1 flex overflow-hidden">
-              {/* INSPECTOR SIDEBAR */}
-              <aside className="w-80 border-r border-stone-100 bg-stone-50/50 flex flex-col">
-                {/* TABS */}
-                <div className="flex border-b border-stone-200 bg-stone-100 text-[10px] font-bold uppercase tracking-wider text-stone-500">
-                  <button onClick={() => setActiveTab("kaart")} className={`flex-1 p-3 transition-all ${activeTab === 'kaart' ? 'bg-white border-b-2 border-orange-500 text-orange-900' : 'hover:bg-stone-200'}`}>
-                    Scènekaart
-                  </button>
-                  <button onClick={() => setActiveTab("wereld")} className={`flex-1 p-3 transition-all ${activeTab === 'wereld' ? 'bg-white border-b-2 border-orange-500 text-orange-900' : 'hover:bg-stone-200'}`}>
-                    Codex
+      <div className="flex-1 flex overflow-hidden">
+        {/* INSPECTOR SIDEBAR */}
+        <aside className="w-80 border-r border-stone-100 bg-stone-50/50 flex flex-col">
+          {/* TABS */}
+          <div className="flex border-b border-stone-200 bg-stone-100 text-[10px] font-bold uppercase tracking-wider text-stone-500">
+            <button onClick={() => setActiveTab("kaart")} className={`flex-1 p-3 transition-all ${activeTab === 'kaart' ? 'bg-white border-b-2 border-orange-500 text-orange-900' : 'hover:bg-stone-200'}`}>
+              Scènekaart
+            </button>
+            <button onClick={() => setActiveTab("wereld")} className={`flex-1 p-3 transition-all ${activeTab === 'wereld' ? 'bg-white border-b-2 border-orange-500 text-orange-900' : 'hover:bg-stone-200'}`}>
+              Codex
+            </button>
+          </div>
+
+          {/* TAB CONTENT */}
+          <div className="p-6 flex-1 overflow-y-auto">
+            {activeTab === "kaart" ? (
+              <div className="space-y-6">
+                {/* HEADER MET DELETE KNOP */}
+                <div className="flex items-center justify-between border-b pb-2 mb-4">
+                  <div className="flex items-center gap-2 text-stone-400 uppercase text-[10px] font-bold tracking-widest">
+                    <Info size={14} /> 
+                    Scène-Analyse
+                  </div>
+                  <button 
+                    onClick={() => deleteScene(selectedScene.id, selectedScene.chapter_id)}
+                    className="text-stone-300 hover:text-red-500 transition-colors p-1"
+                    title="Verwijder scène"
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
 
-                {/* TAB CONTENT */}
-                <div className="p-6 flex-1 overflow-y-auto">
-                  {activeTab === "kaart" ? (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-2 text-stone-400 border-b pb-2 uppercase text-[10px] font-bold tracking-widest">
-                        <Info size={14} /> Scène-Analyse
-                      </div>
-{/* Status Dropdown in de Scènekaart */}
-<div className="mt-4 pt-4 border-t border-stone-100">
-{/* STATUS SELECTIE */}
-<section className="group border-b border-stone-100 pb-4">
-<div className="flex items-center gap-2 mt-2">
-  <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-    Status:
-  </label>
-  <div className="inline-flex items-center gap-2 bg-stone-100/50 px-2 py-1 rounded border border-stone-200">
-    <select 
-      value={selectedScene?.status || "Idee"}
-      onChange={(e) => updateSceneField(selectedScene.id, 'status', e.target.value)}
-      className="bg-transparent border-none text-[11px] text-stone-600 font-bold focus:ring-0 cursor-pointer p-0 pr-5 m-0"
-    >
-      {STATUS_OPTIONS.map((opt) => (
-        <option key={opt} value={opt}>{opt}</option>
-      ))}
-    </select>
-    <div className={`w-2 h-2 rounded-full shadow-sm ${getStatusColor(selectedScene?.status)}`} />
-  </div>
-</div>
-  
-</section>
+                {/* STATUS SELECTIE */}
+                <section className="group border-b border-stone-100 pb-4">
+                  <div className="flex items-center gap-2 mt-2">
+                    <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">Status:</label>
+                    <div className="inline-flex items-center gap-2 bg-stone-100/50 px-2 py-1 rounded border border-stone-200">
+                      <select 
+                        value={selectedScene?.status || "Idee"}
+                        onChange={(e) => updateSceneField(selectedScene.id, 'status', e.target.value)}
+                        className="bg-transparent border-none text-[11px] text-stone-600 font-bold focus:ring-0 cursor-pointer p-0 pr-5 m-0"
+                      >
+                        {STATUS_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                      <div className={`w-2 h-2 rounded-full shadow-sm ${getStatusColor(selectedScene?.status || "Idee")}`} />
+                    </div>
+                  </div>
+                </section>
 
-</div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-  
+<div className="space-y-4">
   {/* POV */}
   <section className="group">
     <div className="flex justify-between items-center">
@@ -491,8 +545,7 @@ const getStatusColor = (status: string) => {
       <p className="text-sm text-stone-700 mt-0.5">{selectedScene.pov || "—"}</p>
     )}
   </section>
-</div>
-<div className="space-y-4 mt-4">
+
   {/* SETTING */}
   <section className="group">
     <div className="flex justify-between items-center">
@@ -511,169 +564,155 @@ const getStatusColor = (status: string) => {
   </section>
 </div>
 
-<div className="space-y-4 mt-4">
-  {/* DOEL */}
+                <div className="space-y-4">
+                  {/* DOEL */}
+                  <section className="group">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Doel</label>
+                      {editingId !== `edit-purpose` && (
+                        <button onClick={() => { setEditingId(`edit-purpose`); setTempTitle(selectedScene.purpose || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+                          <PenTool size={10} />
+                        </button>
+                      )}
+                    </div>
+                    {editingId === `edit-purpose` ? (
+                      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'purpose', tempTitle)} />
+                    ) : (
+                      <p className="text-sm text-stone-600 mt-1">{selectedScene.purpose || "Geen doel."}</p>
+                    )}
+                  </section>
+
+                  {/* CONFLICT */}
+                  <section className="group">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Conflict</label>
+                      {editingId !== `edit-conflict` && (
+                        <button onClick={() => { setEditingId(`edit-conflict`); setTempTitle(selectedScene.conflict || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+                          <PenTool size={10} />
+                        </button>
+                      )}
+                    </div>
+                    {editingId === `edit-conflict` ? (
+                      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'conflict', tempTitle)} />
+                    ) : (
+                      <p className="text-sm text-stone-600 mt-1">{selectedScene.conflict || "Geen conflict."}</p>
+                    )}
+                  </section>
+
+                  {/* OUTCOME */}
+                  <section className="group">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Uitkomst</label>
+                      {editingId !== `edit-outcome` && (
+                        <button onClick={() => { setEditingId(`edit-outcome`); setTempTitle(selectedScene.outcome || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+                          <PenTool size={10} />
+                        </button>
+                      )}
+                    </div>
+                    {editingId === `edit-outcome` ? (
+                      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'outcome', tempTitle)} />
+                    ) : (
+                      <p className="text-sm text-stone-600 mt-1">{selectedScene.outcome || "Geen uitkomst."}</p>
+                    )}
+                  </section>
+
+<div className="space-y-4">
+  {/* SETUP */}
   <section className="group">
     <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Doel</label>
-      {editingId !== `edit-purpose` && (
-        <button onClick={() => { setEditingId(`edit-purpose`); setTempTitle(selectedScene.purpose || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Setup</label>
+      {editingId !== `edit-setup` && (
+        <button onClick={() => { setEditingId(`edit-setup`); setTempTitle(selectedScene.setup || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
           <PenTool size={10} />
         </button>
       )}
     </div>
-    {editingId === `edit-purpose` ? (
-      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'purpose', tempTitle)} />
+    {editingId === `edit-setup` ? (
+      <input autoFocus className="w-full text-xs p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'setup', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'setup', tempTitle)} />
     ) : (
-      <p className="text-sm text-stone-600 mt-1">{selectedScene.purpose || "Geen doel."}</p>
+      <p className="text-xs text-stone-600 mt-1">{selectedScene.setup || "—"}</p>
     )}
   </section>
 
-  {/* CONFLICT */}
+  {/* PAYOFF */}
   <section className="group">
     <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Conflict</label>
-      {editingId !== `edit-conflict` && (
-        <button onClick={() => { setEditingId(`edit-conflict`); setTempTitle(selectedScene.conflict || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Payoff</label>
+      {editingId !== `edit-payoff` && (
+        <button onClick={() => { setEditingId(`edit-payoff`); setTempTitle(selectedScene.payoff || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
           <PenTool size={10} />
         </button>
       )}
     </div>
-    {editingId === `edit-conflict` ? (
-      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'conflict', tempTitle)} />
+    {editingId === `edit-payoff` ? (
+      <input autoFocus className="w-full text-xs p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'payoff', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'payoff', tempTitle)} />
     ) : (
-      <p className="text-sm text-stone-600 mt-1">{selectedScene.conflict || "Geen conflict."}</p>
-    )}
-  </section>
-
-  {/* OUTCOME */}
-  <section className="group">
-    <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Uitkomst (Outcome)</label>
-      {editingId !== `edit-outcome` && (
-        <button onClick={() => { setEditingId(`edit-outcome`); setTempTitle(selectedScene.outcome || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-          <PenTool size={10} />
-        </button>
-      )}
-    </div>
-    {editingId === `edit-outcome` ? (
-      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'outcome', tempTitle)} />
-    ) : (
-      <p className="text-sm text-stone-600 mt-1">{selectedScene.outcome || "Geen uitkomst."}</p>
-    )}
-  </section>
-
-  {/* SETUP & PAYOFF GRID */}
-
-    <section className="group">
-      <div className="flex justify-between items-center">
-        <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Setup</label>
-        {editingId !== `edit-setup` && (
-          <button onClick={() => { setEditingId(`edit-setup`); setTempTitle(selectedScene.setup || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-            <PenTool size={10} />
-          </button>
-        )}
-      </div>
-      {editingId === `edit-setup` ? (
-        <input autoFocus className="w-full text-xs p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'setup', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'setup', tempTitle)} />
-      ) : (
-        <p className="text-xs text-stone-600 mt-1">{selectedScene.setup || "—"}</p>
-      )}
-    </section>
-
-    
-
-    <section className="group">
-      <div className="flex justify-between items-center">
-        <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Payoff</label>
-        {editingId !== `edit-payoff` && (
-          <button onClick={() => { setEditingId(`edit-payoff`); setTempTitle(selectedScene.payoff || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-            <PenTool size={10} />
-          </button>
-        )}
-      </div>
-      {editingId === `edit-payoff` ? (
-        <input autoFocus className="w-full text-xs p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'payoff', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'payoff', tempTitle)} />
-      ) : (
-        <p className="text-xs text-stone-600 mt-1">{selectedScene.payoff || "—"}</p>
-      )}
-    </section>
-
-
-  {/* SAMENVATTING */}
-  <section className="group bg-orange-50/40 p-3 rounded border border-orange-100/50 shadow-sm">
-    <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-orange-800/50 tracking-wider block">Samenvatting</label>
-      {editingId !== `edit-summary` && (
-        <button onClick={() => { setEditingId(`edit-summary`); setTempTitle(selectedScene.summary || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-          <PenTool size={10} />
-        </button>
-      )}
-    </div>
-    {editingId === `edit-summary` ? (
-      <textarea autoFocus className="w-full text-xs p-2 bg-white border border-orange-300 rounded outline-none h-24 italic" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'summary', tempTitle)} />
-    ) : (
-      <p className="text-xs text-stone-600 mt-1 italic">{selectedScene.summary || "Geen samenvatting."}</p>
+      <p className="text-xs text-stone-600 mt-1">{selectedScene.payoff || "—"}</p>
     )}
   </section>
 </div>
 
-                      <div className="pt-4 border-t border-stone-200 space-y-4">
-                        <button onClick={copyAiPrompt} className="w-full py-2 bg-stone-800 text-white text-[10px] uppercase font-bold tracking-widest rounded hover:bg-black">
-                          Copy AI Prompt
-                        </button>
-<textarea 
-  placeholder="Plak JSON hier..."
-  className="w-full h-20 text-[10px] p-2 bg-white border border-stone-200 rounded font-mono outline-none shadow-inner"
-  value={importText} // Dit zorgt dat we het veld kunnen leegmaken
-  onChange={(e) => {
-    const val = e.target.value;
-    setImportText(val); // Update de tekst in het veld
-    if (val.trim().endsWith('}')) { // Trigger import pas als de JSON compleet lijkt
-       handleJsonImport(val);
-    }
-  }}
-/>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-8">
-                      <section>
-  <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-3 border-b pb-1">Locaties</h3>
-  {codexData.locations.map((loc: any) => ( // Voeg (loc: any) toe
-    <details key={loc.id} className="text-sm mb-2 group">
-      <summary className="cursor-pointer font-semibold text-stone-700 hover:text-orange-800 list-none">{loc.name}</summary>
-      <p className="text-xs text-stone-500 mt-1 pl-2 border-l border-stone-300 py-1">{loc.description}</p>
-    </details>
-  ))}
-</section>
-                    </div>
-                  )}
-                </div>
-              </aside>
+                  {/* SAMENVATTING */}
+                  <section className="group bg-orange-50/40 p-3 rounded border border-orange-100/50 shadow-sm">
+                    <label className="text-[10px] uppercase font-bold text-orange-800/50 tracking-wider block">Samenvatting</label>
+                    <p className="text-xs text-stone-600 mt-1 italic leading-relaxed">{selectedScene.summary || "Geen samenvatting."}</p>
+                  </section>
 
-              {/* EDITOR */}
-              <section className="flex-1 bg-white p-12 overflow-y-auto">
-                <textarea 
-                  className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block"
-                  value={prose}
-onChange={(e) => {
-  const val = e.target.value;
-  setProse(val);
-  if (selectedScene?.id) {
-    saveProse(selectedScene.id, val);
-  }
-}}                  placeholder="Begin met schrijven..."
-                />
-              </section>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-stone-300 italic">
-            Selecteer een scène om te beginnen
+                  {/* AI TOOLS */}
+                  <div className="pt-4 border-t border-stone-200 space-y-2">
+                    <button onClick={copyAiPrompt} className="w-full py-2 bg-stone-800 text-white text-[10px] uppercase font-bold tracking-widest rounded hover:bg-black">
+                      Copy AI Prompt
+                    </button>
+                    <textarea 
+                      placeholder="Plak JSON hier..."
+                      className="w-full h-20 text-[10px] p-2 bg-white border border-stone-200 rounded font-mono outline-none shadow-inner"
+                      value={importText}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setImportText(val);
+                        if (val.trim().endsWith('}')) handleJsonImport(val);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <section>
+                  <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-3 border-b pb-1">Locaties</h3>
+                  {codexData.locations.map((loc: any) => (
+                    <details key={loc.id} className="text-sm mb-2 group">
+                      <summary className="cursor-pointer font-semibold text-stone-700 hover:text-orange-800 list-none">{loc.name}</summary>
+                      <p className="text-xs text-stone-500 mt-1 pl-2 border-l border-stone-300 py-1">{loc.description}</p>
+                    </details>
+                  ))}
+                </section>
+              </div>
+            )}
           </div>
-        )}
-      </main>
+        </aside>
+
+        {/* EDITOR */}
+        <section className="flex-1 bg-white p-12 overflow-y-auto">
+          <textarea 
+            className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block"
+            value={prose}
+            onChange={(e) => {
+              const val = e.target.value;
+              setProse(val);
+              if (selectedScene?.id) saveProse(selectedScene.id, val);
+            }}
+            placeholder="Begin met schrijven..."
+          />
+        </section>
+      </div>
+    </>
+  ) : (
+    <div className="flex-1 flex items-center justify-center text-stone-300 italic">
+      Selecteer een scène om te beginnen
+    </div>
+  )}
+</main>
     </div>
   );
 }

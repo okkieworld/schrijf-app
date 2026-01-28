@@ -1,0 +1,284 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { Layout, Save, MoveHorizontal, MapPin, User, Sword } from 'lucide-react';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function ArchitectuurPage() {
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [draggedScene, setDraggedScene] = useState<any>(null);
+
+  // 1. Data ophalen: Hoofdstukken + Scènes + POV + Locatie
+// Voeg deze state toe bovenaan je component
+const [unassignedScenes, setUnassignedScenes] = useState<any[]>([]);
+
+const fetchStructure = async () => {
+  try {
+    const { data: allChapters, error: chapError } = await supabase
+      .from('chapters')
+      .select('*')
+      .order('ord', { ascending: true });
+
+    const { data: allScenes, error: sceneError } = await supabase
+      .from('scenes')
+      .select(`
+        id, 
+        title, 
+        summary, 
+        order_index, 
+        chapter_id,
+        status,
+        pov,
+        setting
+      `);
+
+    if (chapError || sceneError) {
+      console.error("Database details:", chapError || sceneError);
+      return;
+    }
+
+    const formattedChapters = allChapters.map(ch => ({
+      ...ch,
+      scenes: (allScenes || [])
+        .filter(s => s.chapter_id === ch.id)
+        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+    }));
+
+    setChapters(formattedChapters);
+    setUnassignedScenes((allScenes || []).filter(s => !s.chapter_id));
+    
+  } catch (err) {
+    console.error("Systeemfout:", err);
+  }
+};
+
+  useEffect(() => { fetchStructure(); }, []);
+
+  // 2. Drag & Drop Logica
+  const handleDragStart = (scene: any) => setDraggedScene(scene);
+
+  const onDrop = (targetChapterId: string, targetIndex: number) => {
+    if (!draggedScene) return;
+
+    const newChapters = [...chapters];
+    // Verwijder uit oud hoofdstuk
+    newChapters.forEach(ch => {
+      ch.scenes = ch.scenes.filter((s: any) => s.id !== draggedScene.id);
+    });
+
+    // Voeg toe aan nieuw hoofdstuk
+    const targetChapter = newChapters.find(ch => ch.id === targetChapterId);
+    if (targetChapter) {
+      targetChapter.scenes.splice(targetIndex, 0, { ...draggedScene, chapter_id: targetChapterId });
+      // Herindexeer
+      targetChapter.scenes = targetChapter.scenes.map((s: any, i: number) => ({ ...s, order_index: i }));
+    }
+
+    setChapters(newChapters);
+    setIsDirty(true);
+    setDraggedScene(null);
+  };
+
+  // 3. Opslaan naar Database
+const saveChanges = async () => {
+  // Check of er wel iets is om op te slaan
+  if (!isDirty) return;
+
+  setIsSaving(true);
+  console.log("Start opslaan van nieuwe structuur...");
+
+  try {
+    // We verzamelen alle wijzigingen
+    const updates = chapters.flatMap(ch => 
+      ch.scenes.map((s: any, i: number) => ({
+        id: s.id,
+        chapter_id: ch.id,
+        order_index: i
+      }))
+    );
+
+    // Voeg ongeordende scènes toe (die krijgen geen hoofdstuk)
+    unassignedScenes.forEach((s, i) => {
+      updates.push({ id: s.id, chapter_id: null, order_index: i });
+    });
+
+    // We voeren de updates uit
+    // TIP: Als je bang bent, kun je hier eerst een 'confirm' toevoegen
+    const confirmSave = confirm(`Je gaat ${updates.length} scènes een nieuwe plek geven. Weet je het zeker?`);
+    if (!confirmSave) {
+      setIsSaving(false);
+      return;
+    }
+
+    for (const update of updates) {
+      const { error } = await supabase
+        .from('scenes')
+        .update({ 
+          chapter_id: update.chapter_id, 
+          order_index: update.order_index 
+        })
+        .eq('id', update.id);
+      
+      if (error) throw error;
+    }
+
+    setIsDirty(false);
+    alert("✅ Structuur succesvol opgeslagen in de database.");
+  } catch (error: any) {
+    console.error("Opslaan mislukt:", error);
+    alert("❌ Er ging iets mis: " + error.message);
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+
+// 1. Jouw originele kleurfunctie (voor de felle accenten)
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Idee': return 'bg-purple-400';
+    case 'Outline': return 'bg-blue-400';
+    case 'Concept': return 'bg-amber-400';
+    case 'Eerste Versie': return 'bg-stone-500';
+    case 'Redactie': return 'bg-orange-500';
+    case 'Voltooid': return 'bg-green-500';
+    case 'Archief': return 'bg-red-400';
+    default: return 'bg-stone-200';
+  }
+};
+
+// 2. De nieuwe functie voor de lichte kaart-achtergronden
+const getCardStyle = (status: string) => {
+  switch (status) {
+    case 'Idee': return 'bg-purple-50 border-purple-200 text-purple-900';
+    case 'Outline': return 'bg-blue-50 border-blue-200 text-blue-900';
+    case 'Concept': return 'bg-amber-50 border-amber-200 text-amber-900';
+    case 'Eerste Versie': return 'bg-stone-100 border-stone-300 text-stone-900';
+    case 'Redactie': return 'bg-orange-50 border-orange-200 text-orange-900';
+    case 'Voltooid': return 'bg-green-50 border-green-200 text-green-900';
+    case 'Archief': return 'bg-red-50 border-red-200 text-red-900';
+    default: return 'bg-white border-stone-200 text-stone-900';
+  }
+};
+
+
+  return (
+    <div className="min-h-screen bg-stone-50 p-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
+
+          <p className="text-stone-500 italic">Sleep scènes om de tijdlijn van je manuscript te veranderen.</p>
+        </div>
+        {isDirty && (
+          <button 
+            onClick={saveChanges}
+            disabled={isSaving}
+            className="flex items-center gap-2 bg-orange-800 text-white px-6 py-3 rounded-full font-bold shadow-lg hover:bg-orange-900 transition-all scale-105"
+          >
+            <Save size={18} />
+            {isSaving ? 'Bezig met opslaan...' : 'Structuur Vastleggen'}
+          </button>
+        )}
+      </div>
+{/* De Vangnet Kolom */}
+<div 
+  className="w-80 flex-shrink-0 bg-orange-50/50 p-4 rounded-2xl border-2 border-dashed border-orange-200"
+  onDragOver={(e) => e.preventDefault()}
+  onDrop={() => onDrop('null', 0)} // 'null' betekent: haal uit hoofdstuk
+>
+  <h3 className="font-serif font-bold text-orange-900 mb-4 px-2 italic">Ongeordende Scènes</h3>
+  <div className="space-y-3">
+    {unassignedScenes.map((scene) => (
+      <div
+        key={scene.id}
+        draggable
+        onDragStart={() => handleDragStart(scene)}
+        className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm cursor-grab"
+      >
+        <p className="text-sm font-bold text-stone-900">{scene.title}</p>
+      </div>
+    ))}
+  </div>
+</div>
+      {/* Board Layout */}
+      <div className="flex gap-6 overflow-x-auto pb-10 items-start">
+        {chapters.map((chapter) => (
+          <div 
+            key={chapter.id} 
+            className="w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border border-stone-200"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => onDrop(chapter.id, chapter.scenes.length)}
+          >
+<div className="mb-4 px-2">
+  <div className="flex items-center gap-2 mb-1">
+    <span className="text-[10px] font-black text-white bg-orange-800 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter">
+      Hoofdstuk {chapter.ord}
+    </span>
+  </div>
+  <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
+    {chapter.title || "Naamloos"}
+  </h3>
+</div>
+
+<div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
+  {chapter.scenes && chapter.scenes.length > 0 ? (
+    chapter.scenes.map((scene: any, idx: number) => {
+      // We gebruiken jouw exacte kleuren voor de border en het bolletje
+      const statusBg = getStatusColor(scene.status);
+
+      return (
+<div
+  key={scene.id}
+  draggable
+  onDragStart={() => handleDragStart(scene)}
+  onDragOver={(e) => e.preventDefault()}
+  onDrop={(e) => { e.stopPropagation(); onDrop(chapter.id, idx); }}
+  className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
+>
+  {/* Het felle bolletje rechtsboven voor de herkenbaarheid */}
+  <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
+
+  <p className="text-sm font-bold mb-1 pr-6 leading-tight">
+    {scene.title}
+  </p>
+  
+  <p className="text-[10px] opacity-80 line-clamp-3 italic mb-3 font-medium">
+    {scene.summary || "Geen samenvatting..."}
+  </p>
+
+  <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
+    {scene.pov && (
+      <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded shadow-sm">
+        👤 {scene.pov}
+      </span>
+    )}
+    {scene.setting && (
+      <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded shadow-sm">
+        📍 {scene.setting}
+      </span>
+    )}
+  </div>
+</div>
+      );
+    })
+  ) : (
+    <div className="py-8 text-center text-[10px] text-stone-400 italic border-2 border-dashed border-stone-200 rounded-xl">
+      Sleep scènes hierheen
+    </div>
+  )}
+</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
