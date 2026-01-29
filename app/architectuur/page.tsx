@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Layout, Save, MoveHorizontal, MapPin, User, Sword } from 'lucide-react';
+import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2 } from 'lucide-react';
+import Link from 'next/link';
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -169,13 +171,28 @@ const getCardStyle = (status: string) => {
 };
 
 
-  return (
-    <div className="min-h-screen bg-stone-50 p-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6">
+return (
+  <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
+    
+    {/* 1. DE ZIJBALK (Deze staat goed) */}
+    <aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800 h-screen flex-shrink-0">
+      <Link href="/" title="Terug naar Editor">
+        <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
+          <Edit3 size={24} />
+        </div>
+      </Link>
+      <div className="flex flex-col gap-6">
+        {/* Hier kunnen je andere knoppen later in */}
+      </div>
+    </aside>
+
+    {/* 2. DE NIEUWE WRAPPER VOOR DE INHOUD */}
+    <main className="flex-1 flex flex-col overflow-hidden p-10">
+      
+      {/* Header (Blijft bovenin staan) */}
+      <div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
-
           <p className="text-stone-500 italic">Sleep scènes om de tijdlijn van je manuscript te veranderen.</p>
         </div>
         {isDirty && (
@@ -189,28 +206,32 @@ const getCardStyle = (status: string) => {
           </button>
         )}
       </div>
-{/* De Vangnet Kolom */}
-<div 
-  className="w-80 flex-shrink-0 bg-orange-50/50 p-4 rounded-2xl border-2 border-dashed border-orange-200"
-  onDragOver={(e) => e.preventDefault()}
-  onDrop={() => onDrop('null', 0)} // 'null' betekent: haal uit hoofdstuk
->
-  <h3 className="font-serif font-bold text-orange-900 mb-4 px-2 italic">Ongeordende Scènes</h3>
-  <div className="space-y-3">
-    {unassignedScenes.map((scene) => (
-      <div
-        key={scene.id}
-        draggable
-        onDragStart={() => handleDragStart(scene)}
-        className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm cursor-grab"
-      >
-        <p className="text-sm font-bold text-stone-900">{scene.title}</p>
-      </div>
-    ))}
-  </div>
-</div>
-      {/* Board Layout */}
-      <div className="flex gap-6 overflow-x-auto pb-10 items-start">
+
+      {/* 3. HET SCROLLBARE BOARD (Vangnet + Hoofdstukken) */}
+      <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
+        
+        {/* De Vangnet Kolom */}
+        <div 
+          className="w-80 flex-shrink-0 bg-orange-50/50 p-4 rounded-2xl border-2 border-dashed border-orange-200"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => onDrop('null', 0)}
+        >
+          <h3 className="font-serif font-bold text-orange-900 mb-4 px-2 italic">Ongeordende Scènes</h3>
+          <div className="space-y-3">
+            {unassignedScenes.map((scene) => (
+              <div
+                key={scene.id}
+                draggable
+                onDragStart={() => handleDragStart(scene)}
+                className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm cursor-grab"
+              >
+                <p className="text-sm font-bold text-stone-900">{scene.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* De Hoofdstukken */}
         {chapters.map((chapter) => (
           <div 
             key={chapter.id} 
@@ -218,67 +239,67 @@ const getCardStyle = (status: string) => {
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(chapter.id, chapter.scenes.length)}
           >
-<div className="mb-4 px-2">
-  <div className="flex items-center gap-2 mb-1">
-    <span className="text-[10px] font-black text-white bg-orange-800 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter">
-      Hoofdstuk {chapter.ord}
+            <div className="mb-4 px-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-black text-white bg-orange-800 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter">
+                  Hoofdstuk {chapter.ord}
+                </span>
+              </div>
+              <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
+                {chapter.title || "Naamloos"}
+              </h3>
+            </div>
+
+            <div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
+              {chapter.scenes && chapter.scenes.length > 0 ? (
+                chapter.scenes.map((scene: any, idx: number) => (
+                  <div
+                    key={scene.id}
+                    draggable
+                    onDragStart={() => handleDragStart(scene)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.stopPropagation(); onDrop(chapter.id, idx); }}
+                    className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
+                  >
+                    <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
+                    <p className="text-sm font-bold mb-1 pr-6 leading-tight">{scene.title}</p>
+                   <details className="cursor-pointer mb-3 outline-none">
+  <summary className="list-none outline-none">
+    {/* Deze tekst zie je ALTIJD (beperkt tot 3 regels) */}
+    <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
+      {scene.summary || "Geen samenvatting..."}
+    </p>
+    {/* Een subtiele hint dat er meer is */}
+    <span className="text-[9px] text-orange-800 font-bold">
+      [ Klik voor volledige tekst ]
     </span>
+  </summary>
+
+  {/* Dit deel klapt uit direct onder de samenvatting */}
+  <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
+    <p className="italic">{scene.summary}</p>
+    <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
+      [ Klik hierboven om te sluiten ]
+    </p>
   </div>
-  <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
-    {chapter.title || "Naamloos"}
-  </h3>
-</div>
-
-<div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
-  {chapter.scenes && chapter.scenes.length > 0 ? (
-    chapter.scenes.map((scene: any, idx: number) => {
-      // We gebruiken jouw exacte kleuren voor de border en het bolletje
-      const statusBg = getStatusColor(scene.status);
-
-      return (
-<div
-  key={scene.id}
-  draggable
-  onDragStart={() => handleDragStart(scene)}
-  onDragOver={(e) => e.preventDefault()}
-  onDrop={(e) => { e.stopPropagation(); onDrop(chapter.id, idx); }}
-  className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
->
-  {/* Het felle bolletje rechtsboven voor de herkenbaarheid */}
-  <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
-
-  <p className="text-sm font-bold mb-1 pr-6 leading-tight">
-    {scene.title}
-  </p>
-  
-  <p className="text-[10px] opacity-80 line-clamp-3 italic mb-3 font-medium">
-    {scene.summary || "Geen samenvatting..."}
-  </p>
-
-  <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
-    {scene.pov && (
-      <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded shadow-sm">
-        👤 {scene.pov}
-      </span>
-    )}
-    {scene.setting && (
-      <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded shadow-sm">
-        📍 {scene.setting}
-      </span>
-    )}
-  </div>
-</div>
-      );
-    })
-  ) : (
-    <div className="py-8 text-center text-[10px] text-stone-400 italic border-2 border-dashed border-stone-200 rounded-xl">
-      Sleep scènes hierheen
-    </div>
-  )}
-</div>
+</details>
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
+                      {scene.pov && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">👤 {scene.pov}</span>}
+                      {scene.setting && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">📍 {scene.setting}</span>}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-[10px] text-stone-400 italic border-2 border-dashed border-stone-200 rounded-xl">
+                  Sleep scènes hierheen
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
-    </div>
-  );
+    </main>
+  </div>
+);
+   
 }

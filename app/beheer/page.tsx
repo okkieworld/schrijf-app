@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { UserPlus, MapPin, Sword, Trash2, Layout, User, Fingerprint, Brain, Heart, Info, Save, Share2 } from 'lucide-react';
+import { UserPlus, MapPin, Sword, Trash2, Layout, User, Fingerprint, Brain, Heart, Info, Save, Share2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 
 const supabase = createClient(
@@ -169,23 +169,52 @@ useEffect(() => {
 
   return (
     <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
-      <aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800">
-        <Link href="/" title="Terug naar Editor"><Layout className="text-stone-500 hover:text-white transition-colors" size={24} /></Link>
-        <div className="flex flex-col gap-6">
-          <button onClick={() => {setActiveCategory('characters'); setSelectedId(null);}} className={`p-3 rounded-xl transition-all ${activeCategory === 'characters' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}><User size={24} /></button>
-          <button onClick={() => {setActiveCategory('locations'); setSelectedId(null);}} className={`p-3 rounded-xl transition-all ${activeCategory === 'locations' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}><MapPin size={24} /></button>
-          <button onClick={() => {setActiveCategory('items'); setSelectedId(null);}} className={`p-3 rounded-xl transition-all ${activeCategory === 'items' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}><Sword size={24} /></button>
-<button 
-  title="Relatie Netwerk"
-  onClick={() => {
-    setActiveCategory('network'); 
-    setSelectedId(null);
-  }} 
-  className={`p-3 rounded-xl transition-all ${activeCategory === 'network' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}
->
-  <Share2 size={24} />
-</button> </div>
-      </aside>
+      {/* Verticale Navigatie Sidebar voor Architectuur */}
+<aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800 h-screen">
+  {/* Link terug naar de Schrijfpagina */}
+  <Link href="/" title="Terug naar Editor">
+    <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
+      <Edit3 size={24} />
+    </div>
+  </Link>
+
+  <div className="flex flex-col gap-6">
+    <button 
+      title="Personages"
+      onClick={() => {setActiveCategory('characters'); setSelectedId(null);}} 
+      className={`p-3 rounded-xl transition-all ${activeCategory === 'characters' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}
+    >
+      <User size={24} />
+    </button>
+
+    <button 
+      title="Locaties"
+      onClick={() => {setActiveCategory('locations'); setSelectedId(null);}} 
+      className={`p-3 rounded-xl transition-all ${activeCategory === 'locations' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}
+    >
+      <MapPin size={24} />
+    </button>
+
+    <button 
+      title="Items"
+      onClick={() => {setActiveCategory('items'); setSelectedId(null);}} 
+      className={`p-3 rounded-xl transition-all ${activeCategory === 'items' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}
+    >
+      <Sword size={24} />
+    </button>
+
+    <button 
+      title="Relatie Netwerk"
+      onClick={() => {
+        setActiveCategory('network'); 
+        setSelectedId(null);
+      }} 
+      className={`p-3 rounded-xl transition-all ${activeCategory === 'network' ? 'bg-orange-800 text-white' : 'text-stone-500 hover:bg-stone-800'}`}
+    >
+      <Share2 size={24} />
+    </button>
+  </div>
+</aside>
 
       <nav className="w-80 bg-white border-r border-stone-200 flex flex-col h-full shadow-sm">
         <div className="p-6 border-b border-stone-100 flex justify-between items-center">
