@@ -74,17 +74,19 @@ const selectProject = async (project: any) => {
 
 const toggleChapter = async (chapterId: string) => {
   // 1. Data ophalen als we die nog niet hebben
-  if (!scenes[chapterId]) {
-    const { data, error } = await supabase
-      .from('scenes')
-      .select('*')
-      .eq('chapter_id', chapterId)
-      .order('ord');
-    
-    if (!error && data) {
-      setScenes((prev: any) => ({ ...prev, [chapterId]: data }));
-    }
-  }
+// We halen de data ALTIJD op (of we maken de check slimmer)
+const { data, error } = await supabase
+  .from('scenes')
+  .select('*')
+  .eq('chapter_id', chapterId)
+  .order('order_index', { ascending: true }); // We gebruiken nu de juiste kolom
+
+if (!error && data) {
+  setScenes((prev: any) => ({ 
+    ...prev, 
+    [chapterId]: data 
+  }));
+}
 
   // 2. De visuele status toggelen (open/dicht)
   setExpandedChapters((prev) => 

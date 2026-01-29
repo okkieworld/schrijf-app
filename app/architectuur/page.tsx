@@ -90,52 +90,41 @@ const fetchStructure = async () => {
 
   // 3. Opslaan naar Database
 const saveChanges = async () => {
-  // Check of er wel iets is om op te slaan
-  if (!isDirty) return;
-
   setIsSaving(true);
-  console.log("Start opslaan van nieuwe structuur...");
-
   try {
-    // We verzamelen alle wijzigingen
-    const updates = chapters.flatMap(ch => 
-      ch.scenes.map((s: any, i: number) => ({
-        id: s.id,
-        chapter_id: ch.id,
-        order_index: i
-      }))
-    );
+const updates = [
+  ...chapters.flatMap((ch) =>
+    ch.scenes.map((s: any, i: number) => ({
+      ...s,                // Neem ALLE bestaande velden over (inclusief titel, prose, etc.)
+      chapter_id: ch.id,   // Overschrijf alleen de hoofdstuk-koppeling
+      order_index: i,      // Overschrijf de volgorde
+      ord: i               // Overschrijf de oude volgorde-kolom
+    }))
+  ),
+  ...unassignedScenes.map((s: any, i: number) => ({
+    ...s,
+    chapter_id: null,
+    order_index: i,
+    ord: i
+  }))
+];
 
-    // Voeg ongeordende scènes toe (die krijgen geen hoofdstuk)
-    unassignedScenes.forEach((s, i) => {
-      updates.push({ id: s.id, chapter_id: null, order_index: i });
+    console.log("Verzenden naar Supabase:", updates); // Zie wat je verstuurt
+
+    const { error } = await supabase.from('scenes').upsert(updates, {
+      onConflict: 'id' // Vertel Supabase dat hij moet kijken naar het ID voor updates
     });
 
-    // We voeren de updates uit
-    // TIP: Als je bang bent, kun je hier eerst een 'confirm' toevoegen
-    const confirmSave = confirm(`Je gaat ${updates.length} scènes een nieuwe plek geven. Weet je het zeker?`);
-    if (!confirmSave) {
-      setIsSaving(false);
-      return;
-    }
-
-    for (const update of updates) {
-      const { error } = await supabase
-        .from('scenes')
-        .update({ 
-          chapter_id: update.chapter_id, 
-          order_index: update.order_index 
-        })
-        .eq('id', update.id);
-      
-      if (error) throw error;
+    if (error) {
+      console.error("Supabase specifieke fout:", error.message, error.details, error.hint);
+      throw new Error(error.message);
     }
 
     setIsDirty(false);
-    alert("✅ Structuur succesvol opgeslagen in de database.");
-  } catch (error: any) {
-    console.error("Opslaan mislukt:", error);
-    alert("❌ Er ging iets mis: " + error.message);
+    alert('Structuur opgeslagen!');
+  } catch (err: any) {
+    console.error("Volledig foutobject:", err);
+    alert(`Fout bij opslaan: ${err.message || 'Onbekende fout'}`);
   } finally {
     setIsSaving(false);
   }
@@ -176,11 +165,18 @@ return (
     
     {/* 1. DE ZIJBALK (Deze staat goed) */}
     <aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800 h-screen flex-shrink-0">
-      <Link href="/" title="Terug naar Editor">
-        <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
-          <Edit3 size={24} />
-        </div>
-      </Link>
+<Link 
+  href="/" 
+  title="Terug naar Editor"
+  onClick={(e) => {
+    e.preventDefault(); // Voorkom de standaard Next.js navigatie
+    window.location.href = "/"; // Forceer een volledige pagina-herlaad
+  }}
+>
+  <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
+    <Edit3 size={24} />
+  </div>
+</Link>
       <div className="flex flex-col gap-6">
         {/* Hier kunnen je andere knoppen later in */}
       </div>
