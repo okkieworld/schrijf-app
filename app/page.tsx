@@ -447,11 +447,6 @@ onClick={() => handleSceneChange(s)}
   className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
     selectedScene?.id === s.id ? "font-bold text-orange-900" : "text-stone-500"
   }`}
-  className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
-    selectedScene?.id === s.id
-      ? "font-bold text-orange-900"
-      : "text-stone-500"
-  }`}
 >
   <div 
     className={`w-1.5 h-1.5 rounded-full flex-shrink-0 shadow-sm ${getStatusColor(s.status)}`} 
