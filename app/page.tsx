@@ -22,7 +22,7 @@ export default function WritingApp() {
 const [selectedScene, setSelectedScene] = useState<any>(null);
   const [prose, setProse] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  
+  const [totalWords, setTotalWords] = useState(0);
   // Tabs & Codex State
   const [activeTab, setActiveTab] = useState("kaart"); // "kaart" of "wereld"
   const [codexData, setCodexData] = useState<any>({ characters: [], locations: [], items: [] });
@@ -30,19 +30,37 @@ const [selectedScene, setSelectedScene] = useState<any>(null);
 
 
 
+// Zorg dat 'async' hier staat voor (project: any)
 const selectProject = async (project: any) => {
   setSelectedProject(project);
 
-  // 1. Haal de hoofdstukken op
+  // 1. Haal de hoofdstukken op inclusief de proza
   const { data: chaptersData } = await supabase
     .from('chapters')
-    .select('*')
+    .select(`
+      *,
+      scenes (
+        prose
+      )
+    `)
     .eq('project_id', project.id)
     .order('ord');
   
-  setChapters(chaptersData || []);
+  const fetchedChapters = chaptersData || [];
+  setChapters(fetchedChapters);
 
-  // 2. Haal de Codex data op (Characters, Locations, Items)
+  // 2. Bereken totaal
+  let totaal = 0;
+  fetchedChapters.forEach(ch => {
+    ch.scenes?.forEach((s: any) => {
+      if (s.prose) {
+        totaal += s.prose.trim().split(/\s+/).filter(Boolean).length;
+      }
+    });
+  });
+  setTotalWords(totaal);
+
+  // 3. Haal de Codex data op
   const { data: characters } = await supabase.from('characters').select('*').eq('project_id', project.id);
   const { data: locations } = await supabase.from('locations').select('*').eq('project_id', project.id);
   const { data: items } = await supabase.from('items').select('*').eq('project_id', project.id);
@@ -52,10 +70,7 @@ const selectProject = async (project: any) => {
     locations: locations || [],
     items: items || []
   });
-
-  // 3. Indien je nog een aparte fetchCodex functie hebt, kun je die hier ook laten staan:
-  // fetchCodex(project.id); 
-};
+}; // Zorg dat dit afsluitende haakje goed staat
 
 const toggleChapter = async (chapterId: string) => {
   // 1. Data ophalen als we die nog niet hebben
@@ -477,26 +492,37 @@ onClick={() => handleSceneChange(s)}
       </div>
     ))}
   </div>
-  {/* Footer Beheer Link */}
-  <div className="p-4 border-t border-stone-300 bg-stone-200/50">
-    <Link
-      href="/architectuur"
-      className="flex items-center gap-2 w-full p-2 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-300 hover:text-orange-900 transition-all"
-    >
-      <Layout size={18} />
-      <span>Architectuur</span>
-    </Link>
+{/* Compacte Woordenteller onderaan de zijbalk */}
+<div className="mt-auto py-3 px-6 border-t border-stone-200 bg-stone-50">
+  <div className="flex justify-between items-center">
+    <span className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
+      Totaal
+    </span>
+    <span className="text-sm font-serif font-bold text-stone-700">
+      {totalWords.toLocaleString()} <span className="text-[10px] font-sans font-normal text-stone-400">wrd</span>
+    </span>
   </div>
+</div>
+
   {/* Footer Beheer Link */}
-  <div className="p-4 border-t border-stone-300 bg-stone-200/50">
-    <Link
-      href="/beheer"
-      className="flex items-center gap-2 w-full p-2 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-300 hover:text-orange-900 transition-all"
-    >
-      <Layout size={18} />
-      <span>Wereld Beheren</span>
-    </Link>
-  </div>
+ {/* Gecombineerde Footer Navigatie */}
+<div className="mt-auto border-t border-stone-300 bg-stone-200/50 p-2 space-y-1">
+  <Link
+    href="/architectuur"
+    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-300 hover:text-orange-900 transition-all"
+  >
+    <Layout size={14} />
+    <span>Architectuur</span>
+  </Link>
+
+  <Link
+    href="/beheer"
+    className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-300 hover:text-orange-900 transition-all"
+  >
+    <Layout size={14} />
+    <span>Wereld Beheren</span>
+  </Link>
+</div>
 </nav>
 
       {/* RECHTERKANT: Editor & Inspector */}
