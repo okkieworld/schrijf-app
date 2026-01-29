@@ -27,12 +27,8 @@ const [selectedScene, setSelectedScene] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("kaart"); // "kaart" of "wereld"
   const [codexData, setCodexData] = useState<any>({ characters: [], locations: [], items: [] });
 
-  useEffect(() => { fetchProjects(); }, []);
 
-  const fetchProjects = async () => {
-    const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
-    setProjects(data || []);
-  };
+
 
 const selectProject = async (project: any) => {
   setSelectedProject(project);
@@ -82,6 +78,14 @@ const toggleChapter = async (chapterId: string) => {
       : [...prev, chapterId]               // Voeg toe aan lijst = uitklappen
   );
 };
+
+const fetchProjects = async () => {
+    const { data } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setProjects(data || []);
+  };
 
 const saveProse = useMemo(
   () =>
@@ -314,6 +318,34 @@ const deleteScene = async (sceneId: string, chapterId: string) => {
   }
 };
 
+  useEffect(() => { fetchProjects(); }, []);
+const handleSceneChange = async (newScene: any) => {
+  // 1. Sla de huidige tekst op (van de scene waar we NU nog zijn)
+  if (selectedScene?.id) {
+    await supabase
+      .from('scenes')
+      .update({ prose: prose })
+      .eq('id', selectedScene.id);
+  }
+
+  // 2. Selecteer de nieuwe scene
+  setSelectedScene(newScene);
+
+  // 3. Haal de verse tekst op voor de nieuwe scene
+  const { data } = await supabase
+    .from('scenes')
+    .select('prose')
+    .eq('id', newScene.id)
+    .single();
+
+  if (data) {
+    setProse(data.prose || "");
+  } else {
+    setProse(newScene.prose || "");
+  }
+};
+
+
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
       
@@ -393,22 +425,23 @@ const deleteScene = async (sceneId: string, chapterId: string) => {
   ) : (
     <>
       {/* LINKERDEEL: Bolletje eerst, dan de Titel */}
-      <button
-        onClick={() => { setSelectedScene(s); setProse(s.prose || ""); }}
-        className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
-          selectedScene?.id === s.id
-            ? "font-bold text-orange-900"
-            : "text-stone-500"
-        }`}
-      >
-        {/* Het statusbolletje staat nu vooraan */}
-        <div 
-          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 shadow-sm ${getStatusColor(s.status)}`} 
-          title={`Status: ${s.status || 'Idee'}`}
-        />
-        
-        <span className="truncate">{s.title}</span>
-      </button>
+<button
+onClick={() => handleSceneChange(s)}
+  className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
+    selectedScene?.id === s.id ? "font-bold text-orange-900" : "text-stone-500"
+  }`}
+  className={`flex-1 text-left p-1 text-xs rounded truncate flex items-center gap-2 ${
+    selectedScene?.id === s.id
+      ? "font-bold text-orange-900"
+      : "text-stone-500"
+  }`}
+>
+  <div 
+    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 shadow-sm ${getStatusColor(s.status)}`} 
+    title={`Status: ${s.status || 'Idee'}`}
+  />
+  <span className="truncate">{s.title}</span>
+</button>
 
       {/* RECHTERDEEL: De PenTool (alleen bij hover) */}
       <button
