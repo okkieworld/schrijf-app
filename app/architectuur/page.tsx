@@ -181,7 +181,7 @@ Hier zijn de scènes:
 const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
     if (selectedInChapter.length > 0) {
       exportText += `## HOOFDSTUK ${chapter.ord}: ${chapter.title || 'Naamloos'}\n`;
-      selectedInChapter.forEach(scene => {
+      selectedInChapter.forEach((scene: any) => {
         exportText += `### SCÈNE: ${scene.title}\n`;
         exportText += `- POV: ${scene.pov || 'Onbekend'}\n`;
         exportText += `- Setting: ${scene.setting || 'onbekend'}\n`;
