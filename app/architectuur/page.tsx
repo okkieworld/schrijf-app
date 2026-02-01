@@ -16,6 +16,8 @@ export default function ArchitectuurPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [draggedScene, setDraggedScene] = useState<any>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(new Set());
 
   // 1. Data ophalen: Hoofdstukken + Scènes + POV + Locatie
 // Voeg deze state toe bovenaan je component
@@ -38,7 +40,10 @@ const fetchStructure = async () => {
         chapter_id,
         status,
         pov,
-        setting
+        setting,
+        purpose,
+        conflict,
+        outcome
       `);
 
     if (chapError || sceneError) {
@@ -159,6 +164,44 @@ const getCardStyle = (status: string) => {
   }
 };
 
+const copySelectedForAI = () => {
+  // De nieuwe instructies als header van de kopieerslag
+  let exportText = `Analyseer de volgende scènes op tempo, logica en narratieve spanning.
+Hanteer de volgende spelregels:
+
+1. Behoud de status quo tenzij: Stel alleen een verschuiving voor als de huidige volgorde de spanning doodt, de logica breekt of een emotionele pay-off te vroeg weggeeft.
+2. Toets aan de 'Vise-methode': Wordt de druk op de hoofdpersoon per scène groter? Zo niet, hoe repareren we dat met de minste impact op de tijdlijn?
+3. Tijd-efficiëntie: Is de fysieke tijd (middag/avond) geloofwaardig voor de acties die plaatsvinden?
+4. Keuze-verantwoording: Als je adviseert om de volgorde te behouden, leg dan uit waarom deze opbouw juist sterk is.
+
+Hier zijn de scènes:
+\n# AI ANALYSE VERZOEK - SELECTIE\n\n`;
+  
+  chapters.forEach(chapter => {
+    const selectedInChapter = chapter.scenes.filter(s => selectedSceneIds.has(s.id));
+    
+    if (selectedInChapter.length > 0) {
+      exportText += `## HOOFDSTUK ${chapter.ord}: ${chapter.title || 'Naamloos'}\n`;
+      selectedInChapter.forEach(scene => {
+        exportText += `### SCÈNE: ${scene.title}\n`;
+        exportText += `- POV: ${scene.pov || 'Onbekend'}\n`;
+        exportText += `- Setting: ${scene.setting || 'onbekend'}\n`;
+        exportText += `- Conflict: ${scene.conflict || 'onbekend'}\n`;
+        exportText += `- Context: ${scene.summary || 'Geen samenvatting'}\n\n`;
+      });
+    }
+  });
+
+  if (selectedSceneIds.size === 0) {
+    alert("Selecteer eerst een paar scènes door de vinkjes aan te zetten.");
+    return;
+  }
+
+  navigator.clipboard.writeText(exportText);
+  alert(`Succes! ${selectedSceneIds.size} scènes inclusief analyse-instructies gekopieerd.`);
+};
+
+
 
 return (
   <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
@@ -186,22 +229,52 @@ return (
     <main className="flex-1 flex flex-col overflow-hidden p-10">
       
       {/* Header (Blijft bovenin staan) */}
-      <div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6 flex-shrink-0">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
-          <p className="text-stone-500 italic">Sleep scènes om de tijdlijn van je manuscript te veranderen.</p>
-        </div>
-        {isDirty && (
-          <button 
-            onClick={saveChanges}
-            disabled={isSaving}
-            className="flex items-center gap-2 bg-orange-800 text-white px-6 py-3 rounded-full font-bold shadow-lg hover:bg-orange-900 transition-all scale-105"
-          >
-            <Save size={18} />
-            {isSaving ? 'Bezig met opslaan...' : 'Structuur Vastleggen'}
-          </button>
-        )}
-      </div>
+<div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6 flex-shrink-0">
+  {/* Linkerkant: Info */}
+  <div>
+    <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
+    <p className="text-stone-500 italic text-sm">Sleep scènes om te schuiven, of gebruik de AI Selectie voor advies.</p>
+  </div>
+  
+  {/* Rechterkant: Beide functies naast elkaar */}
+  <div className="flex gap-4 items-center">
+    
+    {/* GROEP 1: AI FUNCTIES */}
+    <div className="flex gap-2 bg-stone-100 p-1.5 rounded-full border border-stone-200">
+      <button 
+        onClick={() => setIsSelectionMode(!isSelectionMode)}
+        className={`px-4 py-1.5 rounded-full font-bold text-[11px] transition-all ${
+          isSelectionMode 
+            ? 'bg-orange-800 text-white shadow-inner' 
+            : 'bg-white text-stone-600 hover:bg-stone-50'
+        }`}
+      >
+        {isSelectionMode ? 'Selectie stoppen' : 'AI Selectie Modus'}
+      </button>
+
+      {isSelectionMode && (
+        <button 
+          onClick={copySelectedForAI}
+          className="bg-stone-900 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-md hover:bg-black transition-all flex items-center gap-2"
+        >
+          <Share2 size={12} /> Kopieer voor Gemini
+        </button>
+      )}
+    </div>
+
+    {/* GROEP 2: OPSLAAN (Alleen bij wijziging) */}
+    {isDirty && (
+      <button 
+        onClick={saveChanges}
+        disabled={isSaving}
+        className="flex items-center gap-2 bg-orange-800 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-900 transition-all scale-105 text-xs"
+      >
+        <Save size={16} />
+        {isSaving ? 'Bezig...' : 'Structuur Vastleggen'}
+      </button>
+    )}
+  </div>
+</div>
 
       {/* 3. HET SCROLLBARE BOARD (Vangnet + Hoofdstukken) */}
       <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
@@ -257,28 +330,46 @@ return (
                     onDrop={(e) => { e.stopPropagation(); onDrop(chapter.id, idx); }}
                     className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
                   >
+                    {isSelectionMode && (
+    <div className="absolute top-3 left-3 z-20">
+      <input 
+        type="checkbox" 
+        className="w-5 h-5 cursor-pointer accent-orange-800 border-2 border-orange-800 rounded shadow-md"
+        checked={selectedSceneIds.has(scene.id)}
+        onChange={(e) => {
+          e.stopPropagation(); // Voorkomt dat het details-venster openklapt
+          const newSelected = new Set(selectedSceneIds);
+          if (newSelected.has(scene.id)) newSelected.delete(scene.id);
+          else newSelected.add(scene.id);
+          setSelectedSceneIds(newSelected);
+        }}
+      />
+    </div>
+  )}
                     <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
-                    <p className="text-sm font-bold mb-1 pr-6 leading-tight">{scene.title}</p>
-                   <details className="cursor-pointer mb-3 outline-none">
-  <summary className="list-none outline-none">
-    {/* Deze tekst zie je ALTIJD (beperkt tot 3 regels) */}
-    <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
-      {scene.summary || "Geen samenvatting..."}
-    </p>
-    {/* Een subtiele hint dat er meer is */}
-    <span className="text-[9px] text-orange-800 font-bold">
-      [ Klik voor volledige tekst ]
-    </span>
-  </summary>
+                    
+<p className={`text-sm font-bold mb-1 pr-6 leading-tight ${isSelectionMode ? 'pl-7' : ''}`}>
+    {scene.title}
+  </p>                  <details className="cursor-pointer mb-3 outline-none">
+                    <summary className="list-none outline-none">
+                      {/* Deze tekst zie je ALTIJD (beperkt tot 3 regels) */}
+                      <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
+                        {scene.summary || "Geen samenvatting..."}
+                      </p>
+                      {/* Een subtiele hint dat er meer is */}
+                      <span className="text-[9px] text-orange-800 font-bold">
+                        [ Klik voor volledige tekst ]
+                      </span>
+                    </summary>
 
-  {/* Dit deel klapt uit direct onder de samenvatting */}
-  <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
-    <p className="italic">{scene.summary}</p>
-    <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
-      [ Klik hierboven om te sluiten ]
-    </p>
-  </div>
-</details>
+                    {/* Dit deel klapt uit direct onder de samenvatting */}
+                    <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
+                      <p className="italic">{scene.summary}</p>
+                      <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
+                        [ Klik hierboven om te sluiten ]
+                      </p>
+                    </div>
+                  </details>
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
                       {scene.pov && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">👤 {scene.pov}</span>}
                       {scene.setting && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">📍 {scene.setting}</span>}
