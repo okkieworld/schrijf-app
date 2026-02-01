@@ -178,7 +178,7 @@ Hier zijn de scènes:
 \n# AI ANALYSE VERZOEK - SELECTIE\n\n`;
   
   chapters.forEach(chapter => {
-const selectedInChapter = chapter.scenes.filter((s: Scene) => selectedSceneIds.has(s.id));
+const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
     if (selectedInChapter.length > 0) {
       exportText += `## HOOFDSTUK ${chapter.ord}: ${chapter.title || 'Naamloos'}\n`;
       selectedInChapter.forEach(scene => {
