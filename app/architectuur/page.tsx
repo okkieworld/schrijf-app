@@ -16,6 +16,7 @@ export default function ArchitectuurPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [draggedScene, setDraggedScene] = useState<any>(null);
+  const [draggedChapter, setDraggedChapter] = useState<any>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(new Set());
 
@@ -93,41 +94,65 @@ const fetchStructure = async () => {
     setIsDirty(true);
     setDraggedScene(null);
   };
+const onChapterDragStart = (chapter: any) => {
+    setDraggedChapter(chapter);
+    setDraggedScene(null); // Zorg dat we niet tegelijk een scene slepen
+  };
 
+  const onChapterDrop = (targetIndex: number) => {
+    if (!draggedChapter) return;
+
+    const newChapters = [...chapters];
+    const currentIndex = newChapters.findIndex(ch => ch.id === draggedChapter.id);
+    
+    // Verplaats het hoofdstuk in de lijst
+    newChapters.splice(currentIndex, 1);
+    newChapters.splice(targetIndex, 0, draggedChapter);
+
+    setChapters(newChapters);
+    setIsDirty(true);
+    setDraggedChapter(null);
+  };
   // 3. Opslaan naar Database
 const saveChanges = async () => {
   setIsSaving(true);
   try {
-const updates = [
-  ...chapters.flatMap((ch) =>
-    ch.scenes.map((s: any, i: number) => ({
-      ...s,                // Neem ALLE bestaande velden over (inclusief titel, prose, etc.)
-      chapter_id: ch.id,   // Overschrijf alleen de hoofdstuk-koppeling
-      order_index: i,      // Overschrijf de volgorde
-      ord: i               // Overschrijf de oude volgorde-kolom
-    }))
-  ),
-  ...unassignedScenes.map((s: any, i: number) => ({
-    ...s,
-    chapter_id: null,
-    order_index: i,
-    ord: i
-  }))
-];
+    // A. UPDATE HOOFDSTUK VOLGORDE
+    // We maken een lijstje van alle hoofdstukken met hun nieuwe 'ord' (plek in de rij)
+    const chapterUpdates = chapters.map((ch, i) => ({
+      id: ch.id,
+      title: ch.title,
+      project_id: ch.project_id, // Zorg dat project_id mee gaat als dat verplicht is
+      ord: i + 1                 // De nieuwe positie: 1, 2, 3...
+    }));
 
-    console.log("Verzenden naar Supabase:", updates); // Zie wat je verstuurt
+    const { error: chError } = await supabase
+      .from('chapters')
+      .upsert(chapterUpdates, { onConflict: 'id' });
 
-    const { error } = await supabase.from('scenes').upsert(updates, {
-      onConflict: 'id' // Vertel Supabase dat hij moet kijken naar het ID voor updates
-    });
-
-    if (error) {
-      console.error("Supabase specifieke fout:", error.message, error.details, error.hint);
-      throw new Error(error.message);
+    if (chError) {
+      console.error("Fout bij hoofdstukken:", chError.message);
+      throw new Error("Hoofdstuk volgorde kon niet worden opgeslagen.");
     }
 
+    // B. UPDATE SCENE VOLGORDE (Je bestaande logica, maar nu als stap 2)
+const updates = chapters.flatMap((ch) =>
+  ch.scenes.map((s: any, i: number) => ({
+    ...s,            // Behoud alle bestaande velden (prose, titel, etc.)
+    chapter_id: ch.id, // Koppel aan het huidige hoofdstuk in de lijst
+    order_index: i,  // Geef de positie binnen het hoofdstuk
+    ord: i           // Back-up volgorde kolom
+  }))
+);
+
+    const { error: scError } = await supabase
+      .from('scenes')
+      .upsert(updates, { onConflict: 'id' });
+
+    if (scError) throw new Error(scError.message);
+
     setIsDirty(false);
-    alert('Structuur opgeslagen!');
+    alert('Alles succesvol opgeslagen: Hoofdstukken én scènes!');
   } catch (err: any) {
     console.error("Volledig foutobject:", err);
     alert(`Fout bij opslaan: ${err.message || 'Onbekende fout'}`);
@@ -363,35 +388,34 @@ return (
       {/* 3. HET SCROLLBARE BOARD (Vangnet + Hoofdstukken) */}
       <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
         
-        {/* De Vangnet Kolom */}
-        <div 
-          className="w-80 flex-shrink-0 bg-orange-50/50 p-4 rounded-2xl border-2 border-dashed border-orange-200"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => onDrop('null', 0)}
-        >
-          <h3 className="font-serif font-bold text-orange-900 mb-4 px-2 italic">Ongeordende Scènes</h3>
-          <div className="space-y-3">
-            {unassignedScenes.map((scene) => (
-              <div
-                key={scene.id}
-                draggable
-                onDragStart={() => handleDragStart(scene)}
-                className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm cursor-grab"
-              >
-                <p className="text-sm font-bold text-stone-900">{scene.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* De Hoofdstukken */}
-        {chapters.map((chapter) => (
-          <div 
-            key={chapter.id} 
-            className="w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border border-stone-200"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => onDrop(chapter.id, chapter.scenes.length)}
-          >
+        {chapters.map((chapter, idx) => (
+<div 
+  key={chapter.id} 
+  // 1. Maak het hoofdstuk versleepbaar
+  draggable={!isSelectionMode} 
+  onDragStart={() => onChapterDragStart(chapter)}
+  
+  // 2. Zorg dat er iets op dit hoofdstuk kan landen
+  onDragOver={(e) => e.preventDefault()}
+  onDrop={(e) => {
+    e.preventDefault();
+    if (draggedChapter) {
+      // Als we een hoofdstuk verslepen, gebruik de nieuwe functie
+      onChapterDrop(idx);
+    } else if (draggedScene) {
+      // Als we een scène verslepen, gebruik de oude functie
+      onDrop(chapter.id, chapter.scenes.length);
+    }
+  }}
+  
+  // 3. Voeg visuele feedback toe (het wordt doorzichtig als je het vasthebt)
+  className={`w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border-2 transition-all duration-200 ${
+    draggedChapter?.id === chapter.id 
+      ? 'opacity-20 border-dashed border-orange-400 scale-95' 
+      : 'border-stone-200'
+  }`}
+>
 <div className="mb-4 px-2">
   <div className="flex items-center gap-2 mb-1">
     {/* De badge is nu klikbaar als selectievakje */}
