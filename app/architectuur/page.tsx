@@ -43,7 +43,8 @@ const fetchStructure = async () => {
         setting,
         purpose,
         conflict,
-        outcome
+        outcome,
+        prose
       `);
 
     if (chapError || sceneError) {
@@ -200,7 +201,72 @@ const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has
   alert(`Succes! ${selectedSceneIds.size} scènes inclusief analyse-instructies gekopieerd.`);
 };
 
+const exportToWord = (type: 'summary' | 'prose') => {
+  if (selectedSceneIds.size === 0) {
+    alert("Selecteer eerst de scènes die je wilt exporteren via de AI Selectie Modus.");
+    return;
+  }
 
+  // Header van het document
+  let content = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'><title>Export Codex</title></head>
+    <body style="font-family: 'Times New Roman', serif;">
+      <h1 style="text-align: center;">Codex Export: ${type === 'summary' ? 'Samenvattingen' : 'Integrale Proza'}</h1>
+      <hr>
+  `;
+
+  // Loop door hoofdstukken en scènes
+  chapters.forEach((chapter) => {
+    const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
+    
+    if (selectedInChapter.length > 0) {
+      content += `<h2 style="color: #444; margin-top: 30px;">Hoofdstuk ${chapter.ord}: ${chapter.title || 'Naamloos'}</h2>`;
+      
+      selectedInChapter.forEach((scene: any, index: number) => {
+        content += `
+          <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="font-size: 14pt;">Scène ${chapter.ord}.${index + 1}: ${scene.title}</h3>
+            <p style="font-size: 10pt; color: #888;">POV: ${scene.pov || 'Onbekend'} | Setting: ${scene.setting || 'Onbekend'}</p>
+            <div style="margin-top: 10px; line-height: 1.6;">
+              ${type === 'summary' 
+                ? `<p><i>${scene.summary || 'Geen samenvatting beschikbaar.'}</i></p>` 
+                : scene.prose || '<i>(Nog geen proza geschreven voor deze scène)</i>'}
+            </div>
+          </div>
+        `;
+      });
+    }
+  });
+
+  content += `</body></html>`;
+
+  // Bestand downloaden
+  const fileName = `Export_${type}_${new Date().toISOString().split('T')[0]}.doc`;
+  const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  link.click();
+};
+
+const toggleChapterSelection = (chapter: any) => {
+  const sceneIdsInChapter = chapter.scenes.map((s: any) => s.id);
+  const newSelection = new Set(selectedSceneIds);
+  
+  // Check of alle scenes van dit hoofdstuk al geselecteerd zijn
+  const allSelected = sceneIdsInChapter.every((id: string) => selectedSceneIds.has(id));
+
+  if (allSelected) {
+    // Deselecteer alles van dit hoofdstuk
+    sceneIdsInChapter.forEach((id: string) => newSelection.delete(id));
+  } else {
+    // Selecteer alles van dit hoofdstuk
+    sceneIdsInChapter.forEach((id: string) => newSelection.add(id));
+  }
+
+  setSelectedSceneIds(newSelection);
+};
 
 return (
   <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
@@ -251,14 +317,33 @@ return (
         {isSelectionMode ? 'Selectie stoppen' : 'AI Selectie Modus'}
       </button>
 
-      {isSelectionMode && (
-        <button 
-          onClick={copySelectedForAI}
-          className="bg-stone-900 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-md hover:bg-black transition-all flex items-center gap-2"
-        >
-          <Share2 size={12} /> Kopieer voor Gemini
-        </button>
-      )}
+{isSelectionMode && (
+  <div className="flex gap-2 animate-in fade-in slide-in-from-right-4">
+    {/* Bestaande AI Knop */}
+    <button 
+      onClick={copySelectedForAI}
+      className="bg-stone-900 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-md hover:bg-black transition-all flex items-center gap-2"
+    >
+      <Share2 size={12} /> Voor Gemini
+    </button>
+
+    {/* NIEUW: Word Export Samenvatting */}
+    <button 
+      onClick={() => exportToWord('summary')}
+      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
+    >
+      <Layout size={12} /> Word (Samenvatting)
+    </button>
+
+    {/* NIEUW: Word Export Proza */}
+    <button 
+      onClick={() => exportToWord('prose')}
+      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
+    >
+      <Edit3 size={12} /> Word (Proza)
+    </button>
+  </div>
+)}
     </div>
 
     {/* GROEP 2: OPSLAAN (Alleen bij wijziging) */}
@@ -307,16 +392,38 @@ return (
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(chapter.id, chapter.scenes.length)}
           >
-            <div className="mb-4 px-2">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-black text-white bg-orange-800 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter">
-                  Hoofdstuk {chapter.ord}
-                </span>
-              </div>
-              <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
-                {chapter.title || "Naamloos"}
-              </h3>
-            </div>
+<div className="mb-4 px-2">
+  <div className="flex items-center gap-2 mb-1">
+    {/* De badge is nu klikbaar als selectievakje */}
+    <div 
+      onClick={() => isSelectionMode && toggleChapterSelection(chapter)}
+      className={`flex items-center gap-2 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter transition-all ${
+        isSelectionMode 
+          ? 'cursor-pointer hover:bg-orange-700 bg-orange-800' 
+          : 'bg-orange-800'
+      } text-white`}
+    >
+      {isSelectionMode && (
+        <div className={`w-3 h-3 rounded-sm border border-white/40 flex items-center justify-center transition-colors ${
+          chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) 
+          ? 'bg-white' 
+          : 'bg-transparent'
+        }`}>
+          {chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) && (
+            <div className="w-1.5 h-1.5 bg-orange-800 rounded-full" />
+          )}
+        </div>
+      )}
+      <span className="text-[10px] font-black">
+        Hoofdstuk {chapter.ord}
+      </span>
+    </div>
+  </div>
+
+  <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
+    {chapter.title || "Naamloos"}
+  </h3>
+</div>
 
             <div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
               {chapter.scenes && chapter.scenes.length > 0 ? (
