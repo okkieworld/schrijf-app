@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2 } from 'lucide-react';
+import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2, GripVertical } from 'lucide-react';
 import Link from 'next/link';
 
 
@@ -389,117 +389,120 @@ return (
       <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
         
         {/* De Hoofdstukken */}
-        {chapters.map((chapter, idx) => (
-<div 
-  key={chapter.id} 
-  // 1. Maak het hoofdstuk versleepbaar
-  draggable={!isSelectionMode} 
-  onDragStart={() => onChapterDragStart(chapter)}
-  
-  // 2. Zorg dat er iets op dit hoofdstuk kan landen
-  onDragOver={(e) => e.preventDefault()}
-  onDrop={(e) => {
-    e.preventDefault();
-    if (draggedChapter) {
-      // Als we een hoofdstuk verslepen, gebruik de nieuwe functie
-      onChapterDrop(idx);
-    } else if (draggedScene) {
-      // Als we een scène verslepen, gebruik de oude functie
-      onDrop(chapter.id, chapter.scenes.length);
-    }
-  }}
-  
-  // 3. Voeg visuele feedback toe (het wordt doorzichtig als je het vasthebt)
-  className={`w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border-2 transition-all duration-200 ${
-    draggedChapter?.id === chapter.id 
-      ? 'opacity-20 border-dashed border-orange-400 scale-95' 
-      : 'border-stone-200'
-  }`}
->
-<div className="mb-4 px-2">
-  <div className="flex items-center gap-2 mb-1">
-    {/* De badge is nu klikbaar als selectievakje */}
-    <div 
-      onClick={() => isSelectionMode && toggleChapterSelection(chapter)}
-      className={`flex items-center gap-2 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter transition-all ${
-        isSelectionMode 
-          ? 'cursor-pointer hover:bg-orange-700 bg-orange-800' 
-          : 'bg-orange-800'
-      } text-white`}
-    >
-      {isSelectionMode && (
-        <div className={`w-3 h-3 rounded-sm border border-white/40 flex items-center justify-center transition-colors ${
-          chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) 
-          ? 'bg-white' 
-          : 'bg-transparent'
-        }`}>
-          {chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) && (
-            <div className="w-1.5 h-1.5 bg-orange-800 rounded-full" />
-          )}
-        </div>
-      )}
-      <span className="text-[10px] font-black">
-        Hoofdstuk {chapter.ord}
-      </span>
-    </div>
-  </div>
+{chapters.map((chapter, idx) => (
+          <div 
+            key={chapter.id} 
+            // 1. De hoofddiv is niet meer draggable om scenes de ruimte te geven
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedChapter) {
+                onChapterDrop(idx);
+              } else if (draggedScene) {
+                onDrop(chapter.id, chapter.scenes.length);
+              }
+            }}
+            className={`w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border-2 transition-all duration-200 ${
+              draggedChapter?.id === chapter.id 
+                ? 'opacity-20 border-dashed border-orange-400 scale-95' 
+                : 'border-stone-200'
+            }`}
+          >
+            <div className="mb-4 px-2">
+              <div className="flex items-center gap-2 mb-1">
+                {/* 2. Alleen de badge is draggable: de 'Handgreep' */}
+                <div 
+                  draggable={!isSelectionMode}
+                  onDragStart={(e) => {
+                    e.stopPropagation(); // Voorkom dat scenes mee-draggen
+                    onChapterDragStart(chapter);
+                  }}
+                  onClick={() => isSelectionMode && toggleChapterSelection(chapter)}
+                  className={`flex items-center gap-2 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter transition-all cursor-grab active:cursor-grabbing ${
+                    isSelectionMode 
+                      ? 'hover:bg-orange-700 bg-orange-800' 
+                      : 'bg-orange-800'
+                  } text-white`}
+                >
+                  {/* Grip icoon voor visuele feedback */}
+                  {!isSelectionMode && <GripVertical size={12} className="opacity-50" />}
+                  
+                  {isSelectionMode && (
+                    <div className={`w-3 h-3 rounded-sm border border-white/40 flex items-center justify-center transition-colors ${
+                      chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) 
+                      ? 'bg-white' 
+                      : 'bg-transparent'
+                    }`}>
+                      {chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) && (
+                        <div className="w-1.5 h-1.5 bg-orange-800 rounded-full" />
+                      )}
+                    </div>
+                  )}
+                  <span className="text-[10px] font-black">
+                    Hoofdstuk {chapter.ord}
+                  </span>
+                </div>
+              </div>
 
-  <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
-    {chapter.title || "Naamloos"}
-  </h3>
-</div>
+              <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
+                {chapter.title || "Naamloos"}
+              </h3>
+            </div>
 
+            {/* SCENES CONTAINER */}
             <div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
               {chapter.scenes && chapter.scenes.length > 0 ? (
-                chapter.scenes.map((scene: any, idx: number) => (
+                chapter.scenes.map((scene: any, sIdx: number) => (
                   <div
                     key={scene.id}
                     draggable
                     onDragStart={() => handleDragStart(scene)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.stopPropagation(); onDrop(chapter.id, idx); }}
+                    onDrop={(e) => { 
+                      e.stopPropagation(); 
+                      onDrop(chapter.id, sIdx); 
+                    }}
                     className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
                   >
                     {isSelectionMode && (
-    <div className="absolute top-3 left-3 z-20">
-      <input 
-        type="checkbox" 
-        className="w-5 h-5 cursor-pointer accent-orange-800 border-2 border-orange-800 rounded shadow-md"
-        checked={selectedSceneIds.has(scene.id)}
-        onChange={(e) => {
-          e.stopPropagation(); // Voorkomt dat het details-venster openklapt
-          const newSelected = new Set(selectedSceneIds);
-          if (newSelected.has(scene.id)) newSelected.delete(scene.id);
-          else newSelected.add(scene.id);
-          setSelectedSceneIds(newSelected);
-        }}
-      />
-    </div>
-  )}
+                      <div className="absolute top-3 left-3 z-20">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 cursor-pointer accent-orange-800 border-2 border-orange-800 rounded shadow-md"
+                          checked={selectedSceneIds.has(scene.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newSelected = new Set(selectedSceneIds);
+                            if (newSelected.has(scene.id)) newSelected.delete(scene.id);
+                            else newSelected.add(scene.id);
+setSelectedSceneIds(newSelected);
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
                     
-<p className={`text-sm font-bold mb-1 pr-6 leading-tight ${isSelectionMode ? 'pl-7' : ''}`}>
-    {scene.title}
-  </p>                  <details className="cursor-pointer mb-3 outline-none">
-                    <summary className="list-none outline-none">
-                      {/* Deze tekst zie je ALTIJD (beperkt tot 3 regels) */}
-                      <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
-                        {scene.summary || "Geen samenvatting..."}
-                      </p>
-                      {/* Een subtiele hint dat er meer is */}
-                      <span className="text-[9px] text-orange-800 font-bold">
-                        [ Klik voor volledige tekst ]
-                      </span>
-                    </summary>
+                    <p className={`text-sm font-bold mb-1 pr-6 leading-tight ${isSelectionMode ? 'pl-7' : ''}`}>
+                      {scene.title}
+                    </p>
 
-                    {/* Dit deel klapt uit direct onder de samenvatting */}
-                    <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
-                      <p className="italic">{scene.summary}</p>
-                      <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
-                        [ Klik hierboven om te sluiten ]
-                      </p>
-                    </div>
-                  </details>
+                    <details className="cursor-pointer mb-3 outline-none">
+                      <summary className="list-none outline-none">
+                        <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
+                          {scene.summary || "Geen samenvatting..."}
+                        </p>
+                        <span className="text-[9px] text-orange-800 font-bold">
+                          [ Klik voor volledige tekst ]
+                        </span>
+                      </summary>
+                      <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
+                        <p className="italic">{scene.summary}</p>
+                        <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
+                          [ Klik hierboven om te sluiten ]
+                        </p>
+                      </div>
+                    </details>
+
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
                       {scene.pov && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">👤 {scene.pov}</span>}
                       {scene.setting && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">📍 {scene.setting}</span>}
@@ -518,5 +521,4 @@ return (
     </main>
   </div>
 );
-   
-}
+} // Deze sluit de export default function ArchitectuurPage
