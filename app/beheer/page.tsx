@@ -3,6 +3,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { UserPlus, MapPin, Sword, Trash2, Layout, User, Fingerprint, Brain, Heart, Info, Save, Share2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const MermaidDiagram = dynamic(
+  async () => {
+    const mod = await import('../components/MermaidDiagram');
+    // We controleren handmatig of het een default export is
+    return mod.default || mod;
+  },
+  { 
+    ssr: false,
+    loading: () => <div className="h-20 flex items-center justify-center text-stone-400">Laden...</div>
+  }
+);
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,6 +29,8 @@ export default function BeheerPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [activeTab, setActiveTab] = useState('basis');
   const [isSaving, setIsSaving] = useState(false);
+  const [aiInput, setAiInput] = useState(""); 
+  const [showAiTool, setShowAiTool] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -74,7 +89,46 @@ export default function BeheerPage() {
     debouncedSave(id, activeCategory, field, value);
   };
   // -----------------------------
+const syncWithAi = () => {
+  try {
+    const parsed = JSON.parse(aiInput);
+    
+    // Mapping: AI-term -> Jouw exacte Database kolomnaam
+const fieldMapping: { [key: string]: string } = {
+  'name': 'name',
+  'description': 'description', // De juiste kolom
+  'desciption': 'description',  // Fallback voor als de AI de typo maakt
+  'role': 'role',
+  'age': 'age',
+  'backstory': 'backstory',
+  'background': 'backstory',
+  'appearance': 'appearance',   // Waarschijnlijk ook met een 'a' in je DB
+  'appearens': 'appearance',    // Fallback voor de typo
+  'physical_traits': 'physical_traits',
+  'clothing': 'clothing',
+  'scars': 'scars_marks',
+  'scars_marks': 'scars_marks',
+  'personality': 'personality',
+  'motivation': 'motivation',
+  'desires': 'desires',
+  'fears': 'fears',
+  'strengths': 'strengths',
+  'weaknesses': 'weaknesses',
+  'notes': 'notes'
+};
 
+    Object.keys(parsed).forEach((aiField) => {
+      const targetDbField = fieldMapping[aiField] || aiField;
+      handleFieldChange(selectedId, targetDbField, parsed[aiField]);
+    });
+
+    setAiInput("");
+    setShowAiTool(false);
+    alert("Dossier succesvol bijgewerkt!");
+  } catch (e) {
+    alert("Fout bij importeren. Controleer of de AI pure JSON heeft geleverd.");
+  }
+};
   const addNewItem = async () => {
     const name = `Nieuw(e) ${activeCategory === 'characters' ? 'Karakter' : activeCategory === 'locations' ? 'Locatie' : 'Object'}`;
     const { data: newItem, error } = await supabase.from(activeCategory).insert([{ project_id: projectId, name }]).select().single();
@@ -166,6 +220,91 @@ useEffect(() => {
   }
 }, [activeCategory]);
 
+const generateMermaidChart = () => {
+  // 1. Veiligheid: als er geen data is, toon een simpele placeholder node
+  if (!allRelations || allRelations.length === 0) {
+    return "graph TD\n  StartNode[Geen relaties gedefinieerd]";
+  }
+
+  // 2. Start de graph definitie
+  let chart = "graph TD\n";
+  
+  // 3. Styling: we voegen ook een specifieke kleur toe voor de sfeer
+  chart += "  classDef default fill:#ffffff,stroke:#78716c,stroke-width:1px,color:#1c1917,font-family:serif;\n";
+
+  allRelations.forEach((rel) => {
+    // 4. Maak IDs die 100% veilig zijn (geen spaties, geen gekke tekens)
+    const sourceId = "ID_" + (rel.source?.name || "Bron").replace(/[^a-zA-Z0-9]/g, "");
+    const targetId = "ID_" + (rel.target?.name || "Doel").replace(/[^a-zA-Z0-9]/g, "");
+    
+    // 5. Haal de namen en het type op
+    const sourceName = rel.source?.name || "Onbekend";
+    const targetName = rel.target?.name || "Onbekend";
+    const type = rel.relation_type || "verbonden";
+
+    // 6. Pijl-logica die werkt in v11 (we houden het simpel om syntax errors te voorkomen)
+    // Gebruik --> voor een pijl en --- voor een verbinding zonder richting
+    let arrow = "-->";
+    if (type.toLowerCase().includes('rivaal') || type.toLowerCase().includes('vijand')) {
+      arrow = "-.-"; // Gestippelde lijn voor conflict
+    } else if (type.toLowerCase().includes('vrouw') || type.toLowerCase().includes('man')) {
+      arrow = "==="; // Dikke lijn voor familie/huwelijk
+    }
+    
+    // 7. De string opbouw: ID["Naam"] -- "Label" --> ID2["Naam"]
+    // Let op de extra quotes om het label, dit is cruciaal voor Mermaid 11
+    chart += `  ${sourceId}["${sourceName}"] ${arrow} |"${type}"| ${targetId}["${targetName}"]\n`;
+  });
+
+  return chart;
+};
+
+
+const renderTabContent = () => {
+  if (!activeItem) return null;
+
+  switch (activeTab) {
+    case 'basis':
+      return (
+        <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Rol / Titel" value={activeItem.role} onChange={(v: any) => handleFieldChange(activeItem.id, 'role', v)} />
+            <Field label="Leeftijd" value={activeItem.age} onChange={(v: any) => handleFieldChange(activeItem.id, 'age', v)} />
+          </div>
+          <Field label="Korte Samenvatting" area value={activeItem.description} onChange={(v: any) => handleFieldChange(activeItem.id, 'description', v)} />
+          <Field label="Achtergrondverhaal (Backstory)" area value={activeItem.backstory} onChange={(v: any) => handleFieldChange(activeItem.id, 'backstory', v)} />
+          <Field label="Extra Notities" area value={activeItem.notes} onChange={(v: any) => handleFieldChange(activeItem.id, 'notes', v)} />
+        </div>
+      );
+    case 'fysiek':
+      return (
+        <div className="grid grid-cols-1 gap-6">
+          <Field label="Algemene Verschijning" area value={activeItem.appearens} onChange={(v: any) => handleFieldChange(activeItem.id, 'appearens', v)} />
+          <Field label="Fysieke Kenmerken" area value={activeItem.physical_traits} onChange={(v: any) => handleFieldChange(activeItem.id, 'physical_traits', v)} />
+          <Field label="Kledingstijl" area value={activeItem.clothing} onChange={(v: any) => handleFieldChange(activeItem.id, 'clothing', v)} />
+          <Field label="Littekens & Merken" value={activeItem.scars_marks} onChange={(v: any) => handleFieldChange(activeItem.id, 'scars_marks', v)} />
+        </div>
+      );
+    case 'psychologie':
+      return (
+        <div className="grid grid-cols-1 gap-6">
+          <Field label="Grootste Verlangens" area value={activeItem.desires} onChange={(v: any) => handleFieldChange(activeItem.id, 'desires', v)} />
+          <Field label="Persoonlijkheid" area value={activeItem.personality} onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} />
+          <Field label="Motivatie" area value={activeItem.motivation} onChange={(v: any) => handleFieldChange(activeItem.id, 'motivation', v)} />
+          <Field label="Angsten" area value={activeItem.fears} onChange={(v: any) => handleFieldChange(activeItem.id, 'fears', v)} />
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Sterktes" area value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
+            <Field label="Zwaktes" area value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
+          </div>
+        </div>
+      );
+    default:
+      return null;
+  }
+};
+
+
+
 
   return (
     <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
@@ -216,8 +355,7 @@ useEffect(() => {
   </div>
 </aside>
 
-      <nav className="w-80 bg-white border-r border-stone-200 flex flex-col h-full shadow-sm">
-        <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+<nav className={`w-80 bg-white border-r border-stone-200 flex flex-col h-full shadow-sm ${activeCategory === 'network' ? 'hidden' : ''}`}>        <div className="p-6 border-b border-stone-100 flex justify-between items-center">
           <h2 className="font-bold uppercase tracking-widest text-xs text-stone-400">{activeCategory}</h2>
           <button onClick={addNewItem} className="p-1 hover:bg-stone-100 rounded-full text-orange-800"><UserPlus size={20} /></button>
         </div>
@@ -232,68 +370,50 @@ useEffect(() => {
       </nav>
 
 <main className="flex-1 overflow-y-auto bg-stone-50 p-10">
-
-
-{activeCategory === 'network' && (
-  <div className="max-w-6xl mx-auto">
-    <div className="flex justify-between items-end mb-10 border-b border-stone-200 pb-6">
-      <div>
-        <h2 className="text-4xl font-serif font-bold text-stone-900 mb-2">Sociale Codex</h2>
-        <p className="text-stone-500 italic">Het web van belangen, bloedbanden en vetes.</p>
-      </div>
-      <div className="text-right">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-800 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">
-          {allRelations.length} Actieve Verbindingen
-        </span>
-      </div>
-    </div>
-
-    {allRelations.length > 0 ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {allRelations.map((rel) => (
-          <div key={rel.id} className="group relative bg-white p-8 rounded-2xl border border-stone-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="flex flex-col items-center text-center">
-              
-              {/* Bron */}
-              <div className="mb-2">
-                <p className="text-xs uppercase tracking-widest text-stone-400 font-bold mb-1">Karakter</p>
-                <p className="font-serif text-xl font-bold text-stone-900">{rel.source?.name}</p>
-              </div>
-
-              {/* De Connectie */}
-              <div className="w-full flex items-center my-4">
-                <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-stone-200"></div>
-                <div className="px-4 py-1 mx-2 bg-stone-900 text-white rounded text-[10px] font-bold uppercase tracking-tighter transform -rotate-1">
-                  {rel.relation_type}
-                </div>
-                <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-stone-200"></div>
-              </div>
-
-              {/* Doel */}
-              <div>
-                <p className="text-xs uppercase tracking-widest text-stone-400 font-bold mb-1">van / voor</p>
-                <p className="font-serif text-xl font-bold text-stone-900">{rel.target?.name}</p>
-              </div>
-
-            </div>
-          </div>
-        ))}
-      </div>
-    ) : (
-      <div className="h-96 flex flex-col items-center justify-center border-2 border-dashed border-stone-200 rounded-[3rem] bg-white/30">
-        <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-6">
-          <Share2 size={32} className="text-stone-300" />
+  {/* SCENARIO 1: HET VOLLEDIGE NETWERK OVERZICHT */}
+  {activeCategory === 'network' ? (
+    <div className="max-w-6xl mx-auto space-y-12">
+      <div className="flex justify-between items-end mb-10 border-b border-stone-200 pb-6">
+        <div>
+          <h2 className="text-4xl font-serif font-bold text-stone-900 mb-2">Sociale Codex</h2>
+          <p className="text-stone-500 italic">Het visuele web van belangen, bloedbanden en vetes.</p>
         </div>
-        <p className="font-serif italic text-xl text-stone-500">Geen actieve draden gevonden.</p>
-        <p className="text-stone-400 text-sm mt-2">Leg verbindingen vast in de individuele karakterdossiers.</p>
+        <div className="text-right">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-800 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">
+            {allRelations.length} Actieve Verbindingen
+          </span>
+        </div>
       </div>
-    )}
-  </div>
-)}
-  
-  {activeItem ? (
+
+      <section className="bg-white p-8 rounded-[3rem] border border-stone-200 shadow-sm overflow-x-auto">
+         <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-6 text-center">Netwerk Diagram</h3>
+         <MermaidDiagram chart={generateMermaidChart()} />
+      </section>
+
+      <section>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-6">Relatie Dossiers</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {allRelations.map((rel) => (
+            <div key={rel.id} className="bg-white p-8 rounded-2xl border border-stone-200 shadow-sm">
+              <div className="flex flex-col items-center text-center">
+                <span className="font-serif text-xl font-bold text-stone-900">{rel.source?.name}</span>
+                <div className="w-full flex items-center my-4">
+                  <div className="h-[1px] flex-1 bg-stone-100"></div>
+                  <div className="px-4 py-1 mx-2 bg-stone-900 text-white rounded text-[10px] font-bold uppercase tracking-tighter">
+                    {rel.relation_type}
+                  </div>
+                  <div className="h-[1px] flex-1 bg-stone-100"></div>
+                </div>
+                <span className="font-serif text-xl font-bold text-stone-900">{rel.target?.name}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  ) : activeItem ? (
+    /* SCENARIO 2: EEN SPECIFIEK DOSSIER (KARAKTER/LOCATIE/ITEM) */
     <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-stone-200 overflow-hidden min-h-[600px] flex flex-col">
-      {/* HEADER */}
       <div className="p-8 bg-stone-900 text-white flex justify-between items-start">
         <div className="flex-1">
           <input
@@ -301,20 +421,12 @@ useEffect(() => {
             value={activeItem.name || ""}
             onChange={(e) => handleFieldChange(activeItem.id, 'name', e.target.value)}
           />
-          <div className="flex items-center gap-2 mt-2 text-stone-400 text-[10px] tracking-widest uppercase font-bold">
-            <div className={`w-2 h-2 rounded-full ${isSaving ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`} />
-            <span>{isSaving ? 'Synchroniseren...' : 'Codex Bijgewerkt'}</span>
-          </div>
         </div>
-        <button onClick={handleDelete} className="text-stone-500 hover:text-red-500 transition-colors p-2">
-          <Trash2 size={20}/>
-        </button>
+        <button onClick={handleDelete} className="text-stone-500 hover:text-red-500 p-2"><Trash2 size={20}/></button>
       </div>
 
-      {/* TABS - DYNAMISCH PER CATEGORIE */}
       <div className="flex border-b border-stone-100 bg-stone-50 px-8 overflow-x-auto">
         <TabButton active={activeTab === 'basis'} onClick={() => setActiveTab('basis')} icon={<Info size={14}/>} label="Basis" />
-        
         {activeCategory === 'characters' && (
           <>
             <TabButton active={activeTab === 'fysiek'} onClick={() => setActiveTab('fysiek')} icon={<Fingerprint size={14}/>} label="Fysiek" />
@@ -322,83 +434,47 @@ useEffect(() => {
             <TabButton active={activeTab === 'relaties'} onClick={() => setActiveTab('relaties')} icon={<Heart size={14}/>} label="Relaties" />
           </>
         )}
-
-        {activeCategory === 'locations' && (
-          <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')} icon={<MapPin size={14}/>} label="Locatie Details" />
-        )}
-
-        {activeCategory === 'items' && (
-          <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')} icon={<Sword size={14}/>} label="Item Details" />
-        )}
       </div>
 
-      {/* CONTENT AREA */}
       <div className="p-10 flex-1">
-        {/* ALGEMENE BASIS TAB */}
-        {activeTab === 'basis' && (
-          <div className="space-y-8">
-            <Field label="Algemene Beschrijving" value={activeItem.description} onChange={(v: any) => handleFieldChange(activeItem.id, 'description', v)} area />
-            {activeCategory === 'characters' && (
-              <div className="grid grid-cols-2 gap-8">
-                <Field label="Rol" value={activeItem.role} onChange={(v: any) => handleFieldChange(activeItem.id, 'role', v)} />
-                <Field label="Leeftijd" value={activeItem.age} onChange={(v: any) => handleFieldChange(activeItem.id, 'age', v)} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* KARAKTER SPECIFIEKE TABS */}
-        {activeCategory === 'characters' && activeTab === 'fysiek' && (
-          <div className="space-y-8">
-            <Field label="Uiterlijk" value={activeItem.appearance} onChange={(v: any) => handleFieldChange(activeItem.id, 'appearance', v)} area />
-            <Field label="Kenmerkende Kleding" value={activeItem.clothing} onChange={(v: any) => handleFieldChange(activeItem.id, 'clothing', v)} />
-            <Field label="Littekens/Tattoos" value={activeItem.scars_marks} onChange={(v: any) => handleFieldChange(activeItem.id, 'scars_marks', v)} />
-          </div>
-        )}
-
-        {/* PSYCHOLOGIE TAB */}
-{activeCategory === 'characters' && activeTab === 'psychologie' && (
-  <div className="space-y-8">
-    <Field 
-      label="Persoonlijkheid & Trekken" 
-      value={activeItem.personality} 
-      onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} 
-      area 
-      placeholder="Is hij extravert, melancholisch, opvliegend? Wat zijn de dominante trekken?"
-    />
-    <div className="grid grid-cols-2 gap-8">
-      <Field label="Grootste Angst" value={activeItem.fears} onChange={(v: any) => handleFieldChange(activeItem.id, 'fears', v)} />
-      <Field label="Grootste Verlangen" value={activeItem.desires} onChange={(v: any) => handleFieldChange(activeItem.id, 'desires', v)} />
-      <Field label="Sterktes" value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
-      <Field label="Zwaktes" value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
-    </div>
-  </div>
-)}
-
-{/* RELATIES TAB */}
+        {renderTabContent()}
+        {/* RELATIES TAB LOGICA BINNEN DOSSIER */}
+{/* RELATIES TAB BINNEN KARAKTER DOSSIER */}
+{/* RELATIES TAB BINNEN KARAKTER DOSSIER - BOUWMODUS */}
 {activeCategory === 'characters' && activeTab === 'relaties' && (
-  <div className="space-y-6">
-    {/* LINK TOOL - Nu in de juiste leesvolgorde */}
-    <div className="bg-orange-50/50 p-6 rounded-xl border border-orange-100 shadow-sm">
-      <h3 className="text-xs font-bold uppercase tracking-widest mb-4 text-orange-900">Nieuwe Verbinding Leggen</h3>
-      <div className="flex gap-4 items-end">
-        <div className="flex-[0.4]">
-          <label className="text-[10px] font-bold uppercase text-stone-400 mb-2 block italic">
+  <div className="space-y-8 animate-in fade-in duration-300">
+    
+    {/* 1. LINK TOOL - NIEUWE VERBINDING MAAKKEN */}
+    <div className="bg-orange-50/50 p-8 rounded-2xl border border-orange-100 shadow-sm">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-orange-100 rounded-lg text-orange-800">
+          <Share2 size={18} />
+        </div>
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-900 leading-none">Nieuwe Verbinding Leggen</h3>
+          <p className="text-[10px] text-orange-700/60 mt-1 italic">Definieer hoe {activeItem.name} zich verhoudt tot anderen.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+        <div className="md:col-span-4">
+          <label className="text-[10px] font-bold uppercase text-stone-400 mb-2 block ml-1">
             {activeItem.name} is de...
           </label>
           <input 
             value={newRelation.type}
             onChange={(e) => setNewRelation({...newRelation, type: e.target.value})}
-            placeholder="vrouw, rivaal, neef..." 
-            className="w-full bg-white border border-stone-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-orange-800"
+            placeholder="vrouw, rivaal, mentor..." 
+            className="w-full bg-white border border-stone-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
           />
         </div>
-        <div className="flex-1">
-          <label className="text-[10px] font-bold uppercase text-stone-400 mb-2 block">van / voor</label>
+
+        <div className="md:col-span-5">
+          <label className="text-[10px] font-bold uppercase text-stone-400 mb-2 block ml-1">van / voor</label>
           <select 
             value={newRelation.targetId}
             onChange={(e) => setNewRelation({...newRelation, targetId: e.target.value})}
-            className="w-full bg-white border border-stone-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-orange-800"
+            className="w-full bg-white border border-stone-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all appearance-none"
           >
             <option value="">Selecteer karakter...</option>
             {data.characters
@@ -408,135 +484,64 @@ useEffect(() => {
               ))}
           </select>
         </div>
-        <button 
-          onClick={addRelation}
-          className="bg-stone-900 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-orange-800 transition-colors shadow-sm"
-        >
-          Vastleggen
-        </button>
+
+        <div className="md:col-span-3">
+          <button 
+            onClick={addRelation}
+            disabled={!newRelation.type || !newRelation.targetId}
+            className="w-full bg-stone-900 text-white px-6 py-3 rounded-xl text-xs font-bold hover:bg-orange-800 disabled:opacity-30 disabled:hover:bg-stone-900 transition-all shadow-sm"
+          >
+            Verbinding Vastleggen
+          </button>
+        </div>
       </div>
     </div>
 
-    {/* OVERZICHT LIJST - Nu met de juiste leesvolgorde */}
-    <div className="space-y-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-4">Netwerk van {activeItem.name}</h3>
+    {/* 2. OVERZICHT LIJST */}
+    <div className="space-y-4">
+      <div className="flex items-center gap-4 px-2">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Huidige Verbindingen</h3>
+        <div className="h-[1px] flex-1 bg-stone-100"></div>
+      </div>
+      
       {relations.length > 0 ? (
-        relations.map((rel) => (
-          <div key={rel.id} className="flex items-center justify-between p-4 bg-white border border-stone-100 rounded-xl shadow-sm hover:border-orange-200 transition-all">
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase text-stone-400 font-bold leading-none mb-1">Status</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-stone-900">{activeItem.name}</span>
-                  <span className="px-2 py-0.5 bg-orange-100 text-orange-900 rounded text-xs font-serif italic border border-orange-200">
-                    {rel.relation_type}
-                  </span>
-                  <span className="text-stone-400">van</span>
-                  <span className="font-bold text-stone-900">{rel.target?.name}</span>
+        <div className="grid grid-cols-1 gap-3">
+          {relations.map((rel) => (
+            <div key={rel.id} className="group flex items-center justify-between p-5 bg-white border border-stone-100 rounded-2xl shadow-sm hover:border-orange-200 transition-all">
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-stone-900">{activeItem.name}</span>
+                    <span className="px-3 py-1 bg-stone-50 text-stone-600 rounded-full text-[10px] font-serif italic border border-stone-100">
+                      {rel.relation_type}
+                    </span>
+                    <span className="text-stone-400 text-[10px] uppercase font-bold tracking-tighter">van</span>
+                    <span className="font-bold text-stone-900">{rel.target?.name}</span>
+                  </div>
                 </div>
               </div>
+              <button 
+                onClick={() => deleteRelation(rel.id)}
+                className="text-stone-200 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                title="Relatie verwijderen"
+              >
+                <Trash2 size={16}/>
+              </button>
             </div>
-            <button 
-              onClick={() => deleteRelation(rel.id)}
-              className="text-stone-300 hover:text-red-500 transition-colors p-2"
-              title="Relatie verbreken"
-            >
-              <Trash2 size={16}/>
-            </button>
-          </div>
-        ))
+          ))}
+        </div>
       ) : (
-        <div className="py-10 text-center border-2 border-dashed border-stone-100 rounded-2xl text-stone-400 italic text-sm">
-          Geen actieve verbindingen gevonden voor {activeItem.name}.
+        <div className="py-12 text-center border-2 border-dashed border-stone-100 rounded-[2rem] bg-stone-50/30 text-stone-400 italic text-sm">
+          Er zijn nog geen draden gesponnen voor {activeItem.name}.
         </div>
       )}
     </div>
   </div>
 )}
-
-{/* OVERIG TAB (Optioneel, als je die tab-knop hebt) */}
-{activeCategory === 'characters' && activeTab === 'overig' && (
-  <div className="space-y-8">
-    <Field 
-      label="Achtergrondverhaal (Backstory)" 
-      value={activeItem.backstory} 
-      onChange={(v: any) => handleFieldChange(activeItem.id, 'backstory', v)} 
-      area 
-    />
-    <Field 
-      label="Extra Notities" 
-      value={activeItem.notes} 
-      onChange={(v: any) => handleFieldChange(activeItem.id, 'notes', v)} 
-      area 
-    />
-  </div>
-)}
-
-        {/* LOCATIE SPECIFIEKE TAB */}
-        {activeCategory === 'locations' && activeTab === 'details' && (
-          <div className="space-y-8">
-            <Field label="Zintuiglijke Details (Zien, Horen, Ruiken)" value={activeItem.sensory_details} onChange={(v: any) => handleFieldChange(activeItem.id, 'sensory_details', v)} area />
-            <Field label="Sfeer & Atmosfeer" value={activeItem.atmosphere} onChange={(v: any) => handleFieldChange(activeItem.id, 'atmosphere', v)} />
-            <Field label="Historische Context" value={activeItem.history} onChange={(v: any) => handleFieldChange(activeItem.id, 'history', v)} area />
-          </div>
-        )}
-
-        {/* ITEM SPECIFIEKE TAB */}
-        {activeCategory === 'items' && activeTab === 'details' && (
-          <div className="space-y-8">
-            <Field label="Eigenschappen & Krachten" value={activeItem.properties} onChange={(v: any) => handleFieldChange(activeItem.id, 'properties', v)} area />
-            <Field label="Oorsprong" value={activeItem.origin} onChange={(v: any) => handleFieldChange(activeItem.id, 'origin', v)} />
-            <Field label="Huidige Eigenaar" value={activeItem.owner} onChange={(v: any) => handleFieldChange(activeItem.id, 'owner', v)} />
-          </div>
-        )}
-
-        {activeCategory === 'network' && (
-  <div className="h-full flex flex-col p-10">
-    <div className="mb-8">
-      <h2 className="h-full flex flex-col p-10 bg-red-500">Relatie Netwerk</h2>
-      <p className="text-stone-500 italic">Het sociale weefsel van je verhaal.</p>
-    </div>
-
-    {allRelations.length > 0 ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {allRelations.map((rel) => (
-          <div key={rel.id} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex flex-col items-center text-center gap-3">
-              {/* Bron Karakter */}
-              <div className="w-full">
-                <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">Karakter</span>
-                <p className="font-bold text-lg text-stone-900">{rel.source?.name}</p>
-              </div>
-
-              {/* De Relatie Lijn */}
-              <div className="w-full flex items-center gap-2">
-                <div className="h-[1px] flex-1 bg-stone-200"></div>
-                <span className="px-3 py-1 bg-orange-100 text-orange-900 rounded-full text-xs font-serif italic border border-orange-200 whitespace-nowrap">
-                  {rel.relation_type}
-                </span>
-                <div className="h-[1px] flex-1 bg-stone-200"></div>
-              </div>
-
-              {/* Doel Karakter */}
-              <div className="w-full">
-                <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">van / voor</span>
-                <p className="font-bold text-lg text-stone-900">{rel.target?.name}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    ) : (
-      <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-stone-200 rounded-3xl bg-white/50">
-        <Share2 size={48} className="text-stone-200 mb-4" />
-        <p className="text-stone-400 italic">Er zijn nog geen relaties gedefinieerd in de Codex.</p>
-      </div>
-    )}
-  </div>
-)}
       </div>
     </div>
   ) : (
+    /* SCENARIO 3: LEGE STAAT */
     <div className="h-full flex flex-col items-center justify-center text-stone-300">
       <Layout size={64} className="mb-4 opacity-10" />
       <p className="text-xl font-serif italic text-stone-400">Selecteer een dossier uit de Codex</p>
