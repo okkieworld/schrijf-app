@@ -12,6 +12,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+
 // Hieronder begint je export default function ...
 
 export default function WritingApp() {
@@ -26,6 +27,7 @@ const [selectedScene, setSelectedScene] = useState<any>(null);
   // Tabs & Codex State
   const [activeTab, setActiveTab] = useState("kaart"); // "kaart" of "wereld"
   const [codexData, setCodexData] = useState<any>({ characters: [], locations: [], items: [] });
+  const [showLegend, setShowLegend] = useState(false);
 
 
 
@@ -362,6 +364,42 @@ const handleSceneChange = async (newScene: any) => {
   }
 };
 
+const applyStyle = (type: 'gedachte' | 'brief' | 'whatsapp') => {
+  // We zoeken nu specifiek naar jouw schrijfveld
+  const textarea = document.getElementById('schrijfveld') as HTMLTextAreaElement;
+  if (!textarea) return;
+
+  textarea.focus();
+
+  let textToInsert = "";
+  let startOffset = 0; // Hoeveel tekens vanaf het begin van de invoeging
+  let endOffset = 0;   // Hoeveel tekens vanaf het einde weg
+
+  switch(type) {
+    case 'gedachte':
+      textToInsert = "*gedachte*";
+      startOffset = 1; endOffset = 1; 
+      break;
+    case 'brief':
+      textToInsert = ">>> brief <<<";
+      startOffset = 4; endOffset = 4;
+      break;
+    case 'whatsapp':
+      textToInsert = "> **Naam:** bericht";
+      startOffset = 11; endOffset = 0;
+      break;
+  }
+
+  // Voeg in op cursorpositie
+  document.execCommand('insertText', false, textToInsert);
+
+  // Selecteer automatisch het placeholder-woord
+  const currentPos = textarea.selectionStart;
+  textarea.setSelectionRange(
+    currentPos - textToInsert.length + startOffset, 
+    currentPos - endOffset
+  );
+};
 
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
@@ -750,16 +788,79 @@ onClick={() => handleSceneChange(s)}
 
         {/* EDITOR */}
         <section className="flex-1 bg-white p-12 overflow-y-auto">
-          <textarea 
-            className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block"
-            value={prose}
-            onChange={(e) => {
-              const val = e.target.value;
-              setProse(val);
-              if (selectedScene?.id) saveProse(selectedScene.id, val);
-            }}
-            placeholder="Begin met schrijven..."
-          />
+          <div className="max-w-prose mx-auto mb-4 flex items-center justify-between border-b border-stone-200 pb-2">
+  <div className="flex gap-4 text-[10px] uppercase tracking-widest text-stone-400 font-bold">
+  <button 
+    type="button"
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={() => applyStyle('gedachte')} 
+    className="hover:text-orange-900 transition-colors"
+  >
+    Gedachte (*)
+  </button>
+  <button 
+    type="button"
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={() => applyStyle('brief')} 
+    className="hover:text-orange-900 transition-colors"
+  >
+    Brief ({" >>> "})
+  </button>
+  <button 
+    type="button"
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={() => applyStyle('whatsapp')} 
+    className="hover:text-orange-900 transition-colors"
+  >
+    WhatsApp ({" > "})
+  </button>
+</div>
+  
+  <button 
+    onClick={() => setShowLegend(!showLegend)}
+    className="text-stone-400 hover:text-stone-600 flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest"
+  >
+    <Info size={12} /> Schrijfstijl-gids
+  </button>
+</div>
+
+{/* De Legenda Popup */}
+{showLegend && (
+  <div className="max-w-prose mx-auto mb-6 p-4 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600 shadow-inner animate-in fade-in slide-in-from-top-2">
+    <h4 className="font-bold uppercase mb-2 text-stone-800">Mijn Schrijfstijl-gids</h4>
+<ul className="grid grid-cols-2 gap-2">
+  <li><span className="font-mono text-orange-700">*Gedachte*</span> → Cursief</li>
+  <li><span className="font-mono text-orange-700">Enter</span> → Nieuwe alinea (inspring)</li>
+  <li><span className="font-mono text-orange-700">{" >>> Brief <<< "}</span> → Citaatblok</li>
+  <li><span className="font-mono text-orange-700">2x Enter</span> → Scène-overgang</li>
+  <li><span className="font-mono text-orange-700">{" > **Naam:** tekst "}</span> → WhatsApp</li>
+  <li><span className="font-mono text-orange-700">**Nadruk**</span> → Vetgedrukt</li>
+</ul>
+  </div>
+)}
+<textarea 
+  id="schrijfveld" // CRUCIAAL: Zo weet de knop welk veld hij moet bewerken
+  className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block [text-indent:1.2em] [&:first-line]:indent-0 placeholder:indent-0"
+  value={prose}
+  onKeyDown={(e) => {
+    // Sneltoetsen
+    if (e.ctrlKey && e.key === 'i') { 
+      e.preventDefault(); 
+      applyStyle('gedachte'); 
+    }
+    // Als je ook een sneltoets voor brief wilt (bijv. Ctrl+Q van Quote)
+    if (e.ctrlKey && e.key === 'q') {
+      e.preventDefault();
+      applyStyle('brief');
+    }
+  }}
+  onChange={(e) => {
+    const val = e.target.value;
+    setProse(val);
+    if (selectedScene?.id) saveProse(selectedScene.id, val);
+  }}
+  placeholder="Begin met schrijven..."
+/>
         </section>
       </div>
     </>
