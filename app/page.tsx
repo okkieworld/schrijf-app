@@ -401,6 +401,59 @@ const applyStyle = (type: 'gedachte' | 'brief' | 'whatsapp') => {
   );
 };
 
+
+const generateProsePrompt = () => {
+  if (!selectedScene) {
+    alert("Selecteer eerst een scène.");
+    return;
+  }
+
+  // 1. Zoek de karakterschets van de POV in de Codex
+  const povCharacter = codexData.characters.find(
+    (c: any) => c.name === selectedScene.pov
+  );
+  
+  // 2. Zoek de karakterschetsen van alle overige aanwezigen
+  const involvedCharacters = codexData.characters.filter((c: any) => 
+    selectedScene.involved_characters?.includes(c.name) && c.name !== selectedScene.pov
+  );
+
+  // 3. De prompt met jouw specifieke Nederlandse tekst en de data-koppeling
+  const prompt = `
+"Opdracht: Herschrijf de volgende scène in een strakke, moderne thriller-stijl à la Dan Brown. Gebruik hiervoor de volgende strikte richtlijnen:
+
+Geen Personificatie: Levenloze objecten mogen geen menselijke eigenschappen hebben. Ze 'ademen', 'fluisteren' of 'wachten' niet.
+
+Focus op Materie & POV-Filter: Beschrijf objecten op basis van hun fysieke eigenschappen (textuur, temperatuur, staat). De selectie van details komt voort uit de expertise van het POV-personage (Damiano ziet lichaam/actie; Hugo ziet systemen/logica).
+
+Karakter-gedreven Dialoog: Dialogen weerspiegelen de Codex. Laat de intellectuele of instinctieve aard van het personage horen in hun woordkeuze.
+
+Thriller-tempo boven Jargon: Vermijd te wetenschappelijke of abstracte termen (zoals 'transactioneel', 'extraheren', 'fysiologisch'). Gebruik actieve taal die de urgentie en de inzet van het moment beschrijft.
+
+Expert-perspectief: Schrijf vanuit de blik van een nuchtere expert die naar feiten zoekt, maar behoud de spanning van een achtervolging of onderzoek.
+
+Blacklist (verboden woorden): ademen, fluisteren, aura, essence, mysterieus, voorbestemd, ziel, trillen.
+RELEVANTE FEITEN UIT DE CODEX:
+- POV PERSONAGE: ${selectedScene.pov || "Onbekend"}
+  ${povCharacter ? `FYSIEKE SCHETS: ${povCharacter.description}` : "Geen schets beschikbaar."}
+
+- OVERIGE AANWEZIGEN: 
+${involvedCharacters.length > 0 
+  ? involvedCharacters.map((c: any) => `  * ${c.name}: ${c.description}`).join('\n')
+  : "Geen andere personages aanwezig."}
+
+- LOCATIE: ${selectedScene.setting || "Niet gespecificeerd"}
+
+Hieronder volgt de scène:
+"""${prose}"""
+`;
+
+  navigator.clipboard.writeText(prompt);
+  alert("Schrijf-prompt inclusief karakterschetsen gekopieerd!");
+};
+
+
+
   return (
     <div className="flex h-screen bg-stone-50 text-stone-900 font-sans overflow-hidden">
       
@@ -625,14 +678,51 @@ onClick={() => handleSceneChange(s)}
 <div className="space-y-4">
   {/* POV */}
   <section className="group">
-    <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">POV</label>
-      {editingId !== `edit-pov` && (
-        <button onClick={() => { setEditingId(`edit-pov`); setTempTitle(selectedScene.pov || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-          <PenTool size={10} />
+{/* POV SECTIE */}
+<section className="group">
+  <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">POV</label>
+  <select 
+    className="w-full text-sm p-1 bg-white border border-stone-200 rounded outline-none mt-1"
+    value={selectedScene.pov || ""}
+    onChange={(e) => updateSceneField(selectedScene.id, 'pov', e.target.value)}
+  >
+    <option value="">— Selecteer POV —</option>
+    {codexData.characters.map((char: any) => (
+      <option key={char.id} value={char.name}>{char.name}</option>
+    ))}
+  </select>
+</section>
+
+{/* BETROKKEN KARAKTERS (Nieuw) */}
+<section className="group mt-4">
+  <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-2">Aanwezige Karakters</label>
+  <div className="flex flex-wrap gap-2">
+    {codexData.characters.map((char: any) => {
+      // We checken of de naam in de 'involved' array van de scene staat
+      const isInvolved = selectedScene.involved_characters?.includes(char.name);
+      
+      return (
+        <button
+          key={char.id}
+          onClick={() => {
+            const currentList = selectedScene.involved_characters || [];
+            const newList = isInvolved 
+              ? currentList.filter((n: string) => n !== char.name)
+              : [...currentList, char.name];
+            updateSceneField(selectedScene.id, 'involved_characters', newList);
+          }}
+          className={`px-2 py-1 rounded-full text-[10px] border transition-all ${
+            isInvolved 
+              ? "bg-orange-100 border-orange-300 text-orange-900 font-bold" 
+              : "bg-stone-100 border-stone-200 text-stone-400 opacity-60 hover:opacity-100"
+          }`}
+        >
+          {char.name}
         </button>
-      )}
-    </div>
+      );
+    })}
+  </div>
+</section>
     {editingId === `edit-pov` ? (
       <input autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'pov', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'pov', tempTitle)} />
     ) : (
@@ -787,81 +877,82 @@ onClick={() => handleSceneChange(s)}
         </aside>
 
         {/* EDITOR */}
-        <section className="flex-1 bg-white p-12 overflow-y-auto">
-          <div className="max-w-prose mx-auto mb-4 flex items-center justify-between border-b border-stone-200 pb-2">
-  <div className="flex gap-4 text-[10px] uppercase tracking-widest text-stone-400 font-bold">
-  <button 
-    type="button"
-    onMouseDown={(e) => e.preventDefault()}
-    onClick={() => applyStyle('gedachte')} 
-    className="hover:text-orange-900 transition-colors"
-  >
-    Gedachte (*)
-  </button>
-  <button 
-    type="button"
-    onMouseDown={(e) => e.preventDefault()}
-    onClick={() => applyStyle('brief')} 
-    className="hover:text-orange-900 transition-colors"
-  >
-    Brief ({" >>> "})
-  </button>
-  <button 
-    type="button"
-    onMouseDown={(e) => e.preventDefault()}
-    onClick={() => applyStyle('whatsapp')} 
-    className="hover:text-orange-900 transition-colors"
-  >
-    WhatsApp ({" > "})
-  </button>
-</div>
-  
-  <button 
-    onClick={() => setShowLegend(!showLegend)}
-    className="text-stone-400 hover:text-stone-600 flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest"
-  >
-    <Info size={12} /> Schrijfstijl-gids
-  </button>
-</div>
+<section className="flex-1 bg-white p-12 overflow-y-auto">
+  <div className="max-w-prose mx-auto mb-4 flex items-center justify-between border-b border-stone-200 pb-2">
+    <div className="flex gap-4 items-center text-[10px] uppercase tracking-widest text-stone-400 font-bold">
+      {/* Bestaande stijlknoppen */}
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => applyStyle('gedachte')} className="hover:text-orange-900 transition-colors">
+        Gedachte (*)
+      </button>
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => applyStyle('brief')} className="hover:text-orange-900 transition-colors">
+        Brief ({" >>> "})
+      </button>
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => applyStyle('whatsapp')} className="hover:text-orange-900 transition-colors">
+        WhatsApp ({" > "})
+      </button>
 
-{/* De Legenda Popup */}
-{showLegend && (
-  <div className="max-w-prose mx-auto mb-6 p-4 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600 shadow-inner animate-in fade-in slide-in-from-top-2">
-    <h4 className="font-bold uppercase mb-2 text-stone-800">Mijn Schrijfstijl-gids</h4>
-<ul className="grid grid-cols-2 gap-2">
-  <li><span className="font-mono text-orange-700">*Gedachte*</span> → Cursief</li>
-  <li><span className="font-mono text-orange-700">Enter</span> → Nieuwe alinea (inspring)</li>
-  <li><span className="font-mono text-orange-700">{" >>> Brief <<< "}</span> → Citaatblok</li>
-  <li><span className="font-mono text-orange-700">2x Enter</span> → Scène-overgang</li>
-  <li><span className="font-mono text-orange-700">{" > **Naam:** tekst "}</span> → WhatsApp</li>
-  <li><span className="font-mono text-orange-700">**Nadruk**</span> → Vetgedrukt</li>
-</ul>
+      {/* DE NIEUWE AI PROMPT KNOP - Visueel onderscheiden door kleur en een lijntje */}
+      <div className="h-4 w-px bg-stone-200 mx-1" /> {/* Divider */}
+      <button 
+        type="button"
+        onClick={generateProsePrompt} 
+        className="flex items-center gap-1.5 text-orange-700 hover:text-orange-900 transition-all bg-orange-50 px-2 py-1 rounded-md"
+      >
+        <PenTool size={12} />
+        AI Schrijf-Prompt
+      </button>
+    </div>
+    
+    <button 
+      onClick={() => setShowLegend(!showLegend)}
+      className="text-stone-400 hover:text-stone-600 flex items-center gap-1 text-[10px] uppercase font-bold tracking-widest"
+    >
+      <Info size={12} /> Schrijfstijl-gids
+    </button>
   </div>
-)}
+
+  {/* De rest van je code (Legenda & Textarea) blijft hetzelfde */}
+  {showLegend && (
+    <div className="max-w-prose mx-auto mb-6 p-4 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600 shadow-inner animate-in fade-in slide-in-from-top-2">
+      <h4 className="font-bold uppercase mb-2 text-stone-800">Mijn Schrijfstijl-gids</h4>
+      <ul className="grid grid-cols-2 gap-2">
+        <li><span className="font-mono text-orange-700">*Gedachte*</span> → Cursief</li>
+        <li><span className="font-mono text-orange-700">Enter</span> → Nieuwe alinea (inspring)</li>
+        <li><span className="font-mono text-orange-700">{" >>> Brief <<< "}</span> → Citaatblok</li>
+        <li><span className="font-mono text-orange-700">2x Enter</span> → Scène-overgang</li>
+        <li><span className="font-mono text-orange-700">{" > **Naam:** tekst "}</span> → WhatsApp</li>
+        <li><span className="font-mono text-orange-700">**Nadruk**</span> → Vetgedrukt</li>
+      </ul>
+    </div>
+  )}
+
+
 <textarea 
-  id="schrijfveld" // CRUCIAAL: Zo weet de knop welk veld hij moet bewerken
+  id="schrijfveld"
   className="w-full h-full border-none focus:ring-0 text-xl leading-relaxed font-serif text-stone-800 resize-none max-w-prose mx-auto block [text-indent:1.2em] [&:first-line]:indent-0 placeholder:indent-0"
   value={prose}
+  onChange={(e) => {
+    const val = e.target.value;
+    setProse(val);
+    if (selectedScene?.id) {
+      // Dit zorgt ervoor dat je tekst direct wordt opgeslagen in de database
+      saveProse(selectedScene.id, val);
+    }
+  }}
   onKeyDown={(e) => {
-    // Sneltoetsen
+    // Sneltoetsen voor styling
     if (e.ctrlKey && e.key === 'i') { 
       e.preventDefault(); 
       applyStyle('gedachte'); 
     }
-    // Als je ook een sneltoets voor brief wilt (bijv. Ctrl+Q van Quote)
     if (e.ctrlKey && e.key === 'q') {
       e.preventDefault();
       applyStyle('brief');
     }
   }}
-  onChange={(e) => {
-    const val = e.target.value;
-    setProse(val);
-    if (selectedScene?.id) saveProse(selectedScene.id, val);
-  }}
   placeholder="Begin met schrijven..."
 />
-        </section>
+</section>
       </div>
     </>
   ) : (

@@ -89,44 +89,61 @@ export default function BeheerPage() {
     debouncedSave(id, activeCategory, field, value);
   };
   // -----------------------------
-const syncWithAi = () => {
+const syncWithAi = async () => {
   try {
     const parsed = JSON.parse(aiInput);
-    
-    // Mapping: AI-term -> Jouw exacte Database kolomnaam
-const fieldMapping: { [key: string]: string } = {
-  'name': 'name',
-  'description': 'description', // De juiste kolom
-  'desciption': 'description',  // Fallback voor als de AI de typo maakt
-  'role': 'role',
-  'age': 'age',
-  'backstory': 'backstory',
-  'background': 'backstory',
-  'appearance': 'appearance',   // Waarschijnlijk ook met een 'a' in je DB
-  'appearens': 'appearance',    // Fallback voor de typo
-  'physical_traits': 'physical_traits',
-  'clothing': 'clothing',
-  'scars': 'scars_marks',
-  'scars_marks': 'scars_marks',
-  'personality': 'personality',
-  'motivation': 'motivation',
-  'desires': 'desires',
-  'fears': 'fears',
-  'strengths': 'strengths',
-  'weaknesses': 'weaknesses',
-  'notes': 'notes'
-};
+    setIsSaving(true); // Zet een laadstatus aan
 
+    const fieldMapping: { [key: string]: string } = {
+      'name': 'name',
+      'description': 'description',
+      'role': 'role',
+      'age': 'age',
+      'backstory': 'backstory',
+      'appearance': 'appearance',
+      'physical_traits': 'physical_traits',
+      'clothing': 'clothing',
+      'scars_marks': 'scars_marks',
+      'personality': 'personality',
+      'motivation': 'motivation',
+      'desires': 'desires',
+      'fears': 'fears',
+      'strengths': 'strengths',
+      'weaknesses': 'weaknesses',
+      'notes': 'notes'
+    };
+
+    // 1. Bouw één object met alle updates
+    const updates: any = {};
     Object.keys(parsed).forEach((aiField) => {
       const targetDbField = fieldMapping[aiField] || aiField;
-      handleFieldChange(selectedId, targetDbField, parsed[aiField]);
+      updates[targetDbField] = parsed[aiField];
     });
+
+    // 2. Update de lokale state in één keer (voor directe visuele feedback)
+    setData((prev: any) => ({
+      ...prev,
+      [activeCategory]: prev[activeCategory].map((item: any) =>
+        item.id === selectedId ? { ...item, ...updates } : item
+      ),
+    }));
+
+    // 3. Stuur alles in één keer naar Supabase (Online veel betrouwbaarder)
+    const { error } = await supabase
+      .from(activeCategory)
+      .update(updates)
+      .eq('id', selectedId);
+
+    if (error) throw error;
 
     setAiInput("");
     setShowAiTool(false);
-    alert("Dossier succesvol bijgewerkt!");
+    alert("Dossier online en lokaal succesvol bijgewerkt!");
   } catch (e) {
-    alert("Fout bij importeren. Controleer of de AI pure JSON heeft geleverd.");
+    console.error("Import error:", e);
+    alert("Fout bij opslaan. Controleer je internetverbinding en de JSON structuur.");
+  } finally {
+    setIsSaving(false);
   }
 };
   const addNewItem = async () => {
@@ -422,8 +439,43 @@ const renderTabContent = () => {
             onChange={(e) => handleFieldChange(activeItem.id, 'name', e.target.value)}
           />
         </div>
+        <button 
+        onClick={() => setShowAiTool(!showAiTool)} 
+        className={`p-2 rounded-lg transition-all ${showAiTool ? 'bg-orange-800 text-white' : 'text-stone-500 hover:text-white'}`}
+        title="AI Dossier Import"
+      >
+        <Brain size={20}/>
+      </button>
         <button onClick={handleDelete} className="text-stone-500 hover:text-red-500 p-2"><Trash2 size={20}/></button>
       </div>
+      {/* VOEG DIT BLOK HIER TOE: Het uitklapbare JSON-vlak */}
+{showAiTool && (
+  <div className="m-8 mt-4 p-6 bg-orange-50 border-2 border-orange-200 rounded-2xl animate-in slide-in-from-top duration-300">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-orange-900">AI Dossier Import (JSON)</h3>
+      {/* Kopieerknop voor de prompt */}
+      <button 
+        onClick={() => navigator.clipboard.writeText(`Zet de volgende informatie om in een gedetailleerd karakterdossier van ${activeItem.name}. Geef het resultaat terug als puur JSON zonder tekst eromheen. Gebruik deze velden: role, age, description, backstory, appearance, physical_traits, clothing, scars_marks, personality, motivation, desires, fears, strengths, weaknesses, notes.`)}
+        className="text-[10px] font-bold text-orange-800 hover:underline"
+      >
+        Kopieer AI Prompt
+      </button>
+    </div>
+    <textarea
+      className="w-full h-40 bg-white border border-orange-200 rounded-xl p-4 text-mono text-xs focus:ring-2 focus:ring-orange-800 outline-none text-stone-900 transition-all shadow-inner"
+      /* De placeholder herinnert je aan de structuur */
+      placeholder='Plak hier de JSON. Tip: Gebruik de "Kopieer AI Prompt" knop hierboven om Gemini de juiste data te laten genereren.'
+      value={aiInput}
+      onChange={(e) => setAiInput(e.target.value)}
+    />
+    <button
+      onClick={syncWithAi}
+      className="mt-4 w-full bg-orange-800 text-white py-3 rounded-xl text-xs font-bold hover:bg-stone-900 transition-all flex items-center justify-center gap-2 shadow-md"
+    >
+      <Save size={16} /> Dossier Bijwerken
+    </button>
+  </div>
+)}
 
       <div className="flex border-b border-stone-100 bg-stone-50 px-8 overflow-x-auto">
         <TabButton active={activeTab === 'basis'} onClick={() => setActiveTab('basis')} icon={<Info size={14}/>} label="Basis" />
@@ -438,8 +490,6 @@ const renderTabContent = () => {
 
       <div className="p-10 flex-1">
         {renderTabContent()}
-        {/* RELATIES TAB LOGICA BINNEN DOSSIER */}
-{/* RELATIES TAB BINNEN KARAKTER DOSSIER */}
 {/* RELATIES TAB BINNEN KARAKTER DOSSIER - BOUWMODUS */}
 {activeCategory === 'characters' && activeTab === 'relaties' && (
   <div className="space-y-8 animate-in fade-in duration-300">
