@@ -138,6 +138,7 @@ Gebruik exact dit schema:
   "purpose": "Doel van de scène", 
   "conflict": "Het obstakel", 
   "outcome": "Resultaat", 
+  "subtext": "Psyychologische subtekst", 
   "setup": "Geplante aanwijzing", 
   "payoff": "Inlossing van eerdere aanwijzing", 
   "summary": "Beknopte samenvatting van max 4 regels"
@@ -419,33 +420,40 @@ const generateProsePrompt = () => {
   );
 
   // 3. De prompt met jouw specifieke Nederlandse tekst en de data-koppeling
-  const prompt = `
-"Opdracht: Herschrijf de volgende scène in een strakke, moderne thriller-stijl à la Dan Brown. Gebruik hiervoor de volgende strikte richtlijnen:
+const prompt = `
+Opdracht: Herschrijf de onderstaande scène als een klinische thriller-expert in de stijl van Dan Brown.
 
-Geen Personificatie: Levenloze objecten mogen geen menselijke eigenschappen hebben. Ze 'ademen', 'fluisteren' of 'wachten' niet.
+### STAP 1: ANALYSE (Verplicht eerst uitvoeren)
+Noteer kort voordat je de scène schrijft:
+1. Materiaal-check: Welke fysieke objecten zijn aanwezig? (Textuur, temperatuur, staat).
+2. POV-Filter: Hoe vertaalt de 'perception_filter' van het personage zich naar deze specifieke ruimte?
+3. Dialoog-stempel: Hoe wordt de 'dialogue_style' van de aanwezigen toegepast op de subtext?
 
-Focus op Materie & POV-Filter: Beschrijf objecten op basis van hun fysieke eigenschappen (textuur, temperatuur, staat). De selectie van details komt voort uit de expertise van het POV-personage (Damiano ziet lichaam/actie; Hugo ziet systemen/logica).
+### STAP 2: DE SCÈNE SCHRIJVEN
+Hanteer deze strikte richtlijnen:
+- Geen Personificatie: Objecten ademen, fluisteren, wachten of bespotten niet.
+- Klinische POV: Beschrijf de omgeving uitsluitend via de technische expertise van het POV-personage.
+- Materiële Focus: Focus op gewicht, lichtinval, resolutie, hardware en fysieke weerstand.
+- Expert-Dialoog: Gebruik de specifieke stemvoering uit de Codex. Geen algemene 'boekentaal'.
+- Blacklist (STRIKT VERBODEN): ademen, fluisteren, aura, essence, mysterieus, voorbestemd, ziel, trillen, schaduw, droom, voelen (als emotie).
 
-Karakter-gedreven Dialoog: Dialogen weerspiegelen de Codex. Laat de intellectuele of instinctieve aard van het personage horen in hun woordkeuze.
-
-Thriller-tempo boven Jargon: Vermijd te wetenschappelijke of abstracte termen (zoals 'transactioneel', 'extraheren', 'fysiologisch'). Gebruik actieve taal die de urgentie en de inzet van het moment beschrijft.
-
-Expert-perspectief: Schrijf vanuit de blik van een nuchtere expert die naar feiten zoekt, maar behoud de spanning van een achtervolging of onderzoek.
-
-Blacklist (verboden woorden): ademen, fluisteren, aura, essence, mysterieus, voorbestemd, ziel, trillen.
-RELEVANTE FEITEN UIT DE CODEX:
+### RELEVANTE FEITEN UIT DE CODEX:
 - POV PERSONAGE: ${selectedScene.pov || "Onbekend"}
-  ${povCharacter ? `FYSIEKE SCHETS: ${povCharacter.description}` : "Geen schets beschikbaar."}
+  * Waarneming (Perception Filter): ${povCharacter?.perception_filter || "Niet gedefinieerd"}
+  * Stemvoering (Dialogue Style): ${povCharacter?.dialogue_style || "Niet gedefinieerd"}
 
 - OVERIGE AANWEZIGEN: 
 ${involvedCharacters.length > 0 
-  ? involvedCharacters.map((c: any) => `  * ${c.name}: ${c.description}`).join('\n')
+  ? involvedCharacters.map((c: any) => `  * ${c.name} (Stemvoering): ${c.dialogue_style || "Geen specifieke stijl"}`).join('\n')
   : "Geen andere personages aanwezig."}
 
+### SCÈNE DATA (SCENEKAART):
 - LOCATIE: ${selectedScene.setting || "Niet gespecificeerd"}
+- DOEL (PURPOSE): ${selectedScene.purpose || "Niet gespecificeerd"}
+- SUBTEXT: ${selectedScene.subtext || "Geen verborgen agenda"}
 
-Hieronder volgt de scène:
-"""${prose}"""
+### BRONTEKST:
+"""${prose || "Geen ruwe proza aanwezig. Genereer een nieuwe scène op basis van de bovenstaande data en de Scenekaart."}"""
 `;
 
   navigator.clipboard.writeText(prompt);
@@ -766,22 +774,39 @@ onClick={() => handleSceneChange(s)}
                     )}
                   </section>
 
-                  {/* CONFLICT */}
-                  <section className="group">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Conflict</label>
-                      {editingId !== `edit-conflict` && (
-                        <button onClick={() => { setEditingId(`edit-conflict`); setTempTitle(selectedScene.conflict || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-                          <PenTool size={10} />
-                        </button>
-                      )}
-                    </div>
-                    {editingId === `edit-conflict` ? (
-                      <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'conflict', tempTitle)} />
-                    ) : (
-                      <p className="text-sm text-stone-600 mt-1">{selectedScene.conflict || "Geen conflict."}</p>
-                    )}
-                  </section>
+{/* CONFLICT */}
+<section className="group">
+  <div className="flex justify-between items-center">
+    <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Conflict</label>
+    {editingId !== `edit-conflict` && (
+      <button onClick={() => { setEditingId(`edit-conflict`); setTempTitle(selectedScene.conflict || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
+        <PenTool size={10} />
+      </button>
+    )}
+  </div>
+  {editingId === `edit-conflict` ? (
+    <textarea autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none h-16" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'conflict', tempTitle)} />
+  ) : (
+    <p className="text-sm text-stone-600 mt-1">{selectedScene.conflict || "Geen conflict."}</p>
+  )}
+</section>
+
+{/* SUBTEKST (Nieuwe toevoeging) */}
+<section className="group bg-orange-50/20 p-2 rounded-md border border-dashed border-orange-200/50">
+  <div className="flex justify-between items-center">
+    <label className="text-[10px] uppercase font-bold text-orange-800/50 tracking-wider block text-xs">Psychologische Subtekst</label>
+    {editingId !== `edit-subtext` && (
+      <button onClick={() => { setEditingId(`edit-subtext`); setTempTitle(selectedScene.subtext || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-orange-400 hover:text-orange-900 transition-all">
+        <PenTool size={10} />
+      </button>
+    )}
+  </div>
+  {editingId === `edit-subtext` ? (
+    <textarea autoFocus className="w-full text-xs p-1 bg-white border border-orange-300 rounded outline-none h-16 shadow-inner" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => { updateSceneField(selectedScene.id, 'subtext', tempTitle); setEditingId(null); }} />
+  ) : (
+    <p className="text-xs text-orange-900/60 mt-1 italic leading-tight">{selectedScene.subtext || "Wat is de onuitgesproken drijfveer?"}</p>
+  )}
+</section>
 
                   {/* OUTCOME */}
                   <section className="group">

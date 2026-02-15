@@ -94,9 +94,11 @@ const syncWithAi = async () => {
     const parsed = JSON.parse(aiInput);
     setIsSaving(true); // Zet een laadstatus aan
 
-    const fieldMapping: { [key: string]: string } = {
+const fieldMapping: { [key: string]: string } = {
       'name': 'name',
-      'description': 'description',
+      'description': 'description', // Korte omschrijving
+      'perception_filter': 'perception_filter', // Expert-bril voor AI
+      'dialogue_style': 'dialogue_style', // CRUCIAAL: Voeg deze toe
       'role': 'role',
       'age': 'age',
       'backstory': 'backstory',
@@ -296,22 +298,48 @@ const renderTabContent = () => {
     case 'fysiek':
       return (
         <div className="grid grid-cols-1 gap-6">
-          <Field label="Algemene Verschijning" area value={activeItem.appearens} onChange={(v: any) => handleFieldChange(activeItem.id, 'appearens', v)} />
           <Field label="Fysieke Kenmerken" area value={activeItem.physical_traits} onChange={(v: any) => handleFieldChange(activeItem.id, 'physical_traits', v)} />
           <Field label="Kledingstijl" area value={activeItem.clothing} onChange={(v: any) => handleFieldChange(activeItem.id, 'clothing', v)} />
           <Field label="Littekens & Merken" value={activeItem.scars_marks} onChange={(v: any) => handleFieldChange(activeItem.id, 'scars_marks', v)} />
         </div>
       );
-    case 'psychologie':
+case 'psychologie':
       return (
         <div className="grid grid-cols-1 gap-6">
-          <Field label="Grootste Verlangens" area value={activeItem.desires} onChange={(v: any) => handleFieldChange(activeItem.id, 'desires', v)} />
-          <Field label="Persoonlijkheid" area value={activeItem.personality} onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} />
+          {/* De cruciale 'Expert-bril' voor de AI */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field 
+              label="Waarneming (Perception Filter)" 
+              area 
+              value={activeItem.perception_filter} 
+              onChange={(v: any) => handleFieldChange(activeItem.id, 'perception_filter', v)}
+              placeholder="Hoe ziet dit personage de wereld fysiek? (Systemen, materie, risico's...)"
+            />
+            <Field 
+              label="Stemvoering (Dialogue Style)" 
+              area 
+              value={activeItem.dialogue_style} 
+              onChange={(v: any) => handleFieldChange(activeItem.id, 'dialogue_style', v)}
+              placeholder="Specifieke spreekregels (bijv. Jonas: informeel, 'handelstaal')."
+            />
+          </div>
+
+          <hr className="border-gray-800 my-2" />
+
+          {/* De psychologische onderstroom */}
+                    <div className="grid grid-cols-2 gap-4">
+<Field label="Persoonlijkheid (Innerlijke Stem)" area value={activeItem.personality} onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} />
           <Field label="Motivatie" area value={activeItem.motivation} onChange={(v: any) => handleFieldChange(activeItem.id, 'motivation', v)} />
-          <Field label="Angsten" area value={activeItem.fears} onChange={(v: any) => handleFieldChange(activeItem.id, 'fears', v)} />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Sterktes" area value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
-            <Field label="Zwaktes" area value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
+            <Field label="Grootste Verlangens" area value={activeItem.desires} onChange={(v: any) => handleFieldChange(activeItem.id, 'desires', v)} />
+            <Field label="Angsten" area value={activeItem.fears} onChange={(v: any) => handleFieldChange(activeItem.id, 'fears', v)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+              <Field label="Sterktes" area value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
+              <Field label="Zwaktes" area value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
           </div>
         </div>
       );
@@ -454,12 +482,12 @@ const renderTabContent = () => {
     <div className="flex justify-between items-center mb-4">
       <h3 className="text-xs font-bold uppercase tracking-widest text-orange-900">AI Dossier Import (JSON)</h3>
       {/* Kopieerknop voor de prompt */}
-      <button 
-        onClick={() => navigator.clipboard.writeText(`Zet de volgende informatie om in een gedetailleerd karakterdossier van ${activeItem.name}. Geef het resultaat terug als puur JSON zonder tekst eromheen. Gebruik deze velden: role, age, description, backstory, appearance, physical_traits, clothing, scars_marks, personality, motivation, desires, fears, strengths, weaknesses, notes.`)}
-        className="text-[10px] font-bold text-orange-800 hover:underline"
-      >
-        Kopieer AI Prompt
-      </button>
+<button 
+  onClick={() => navigator.clipboard.writeText(`Zet de volgende informatie om in een gedetailleerd karakterdossier van ${activeItem.name}. Geef het resultaat terug als puur JSON zonder tekst eromheen. Gebruik deze velden: role, age, description, dialogue_style (specifieke spreekregels), backstory, appearance, physical_traits, clothing, scars_marks, personality, motivation, desires, fears, strengths, weaknesses, notes.`)}
+  className="text-[10px] font-bold text-orange-800 hover:underline"
+>
+  Kopieer AI Prompt
+</button>
     </div>
     <textarea
       className="w-full h-40 bg-white border border-orange-200 rounded-xl p-4 text-mono text-xs focus:ring-2 focus:ring-orange-800 outline-none text-stone-900 transition-all shadow-inner"
