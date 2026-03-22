@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2, GripVertical } from 'lucide-react';
+import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2, GripVertical, Settings, X } from 'lucide-react';
 import Link from 'next/link';
 
 
@@ -19,6 +19,12 @@ export default function ArchitectuurPage() {
   const [draggedChapter, setDraggedChapter] = useState<any>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(new Set());
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+const [writingStyle, setWritingStyle] = useState("");
+
+
+
 
   // 1. Data ophalen: Hoofdstukken + Scènes + POV + Locatie
 // Voeg deze state toe bovenaan je component
@@ -26,11 +32,13 @@ const [unassignedScenes, setUnassignedScenes] = useState<any[]>([]);
 
 const fetchStructure = async () => {
   try {
+    // 1. Haal alle hoofdstukken op
     const { data: allChapters, error: chapError } = await supabase
       .from('chapters')
       .select('*')
       .order('ord', { ascending: true });
 
+    // 2. Haal alle scènes op
     const { data: allScenes, error: sceneError } = await supabase
       .from('scenes')
       .select(`
@@ -53,6 +61,24 @@ const fetchStructure = async () => {
       return;
     }
 
+    // 3. Haal Project-informatie op (voor de writing_style)
+    // We gaan ervan uit dat hoofdstukken gekoppeld zijn aan een project_id
+    if (allChapters && allChapters.length > 0) {
+      const projectId = allChapters[0].project_id;
+      
+      const { data: projectData, error: projError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (!projError && projectData) {
+        setSelectedProject(projectData);
+        setWritingStyle(projectData.writing_style || "");
+      }
+    }
+
+    // 4. Formatteer de data voor de UI
     const formattedChapters = allChapters.map(ch => ({
       ...ch,
       scenes: (allScenes || [])
@@ -60,6 +86,7 @@ const fetchStructure = async () => {
         .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
     }));
 
+    // 5. Update states
     setChapters(formattedChapters);
     setUnassignedScenes((allScenes || []).filter(s => !s.chapter_id));
     
@@ -293,6 +320,31 @@ const toggleChapterSelection = (chapter: any) => {
   setSelectedSceneIds(newSelection);
 };
 
+
+
+// Functie om alleen de schrijfstijl op te slaan
+const saveWritingStyle = async () => {
+  if (!selectedProject) return;
+  setIsSaving(true);
+  try {
+    const { error } = await supabase
+      .from('projects')
+      .update({ writing_style: writingStyle })
+      .eq('id', selectedProject.id);
+
+    if (error) throw error;
+    
+    // Update lokale state zodat het project-object ook weer klopt
+    setSelectedProject({ ...selectedProject, writing_style: writingStyle });
+    setIsSettingsOpen(false);
+    alert("Schrijfstijl succesvol bijgewerkt!");
+  } catch (err: any) {
+    alert("Fout bij opslaan: " + err.message);
+  } finally {
+    setIsSaving(false);
+  }
+};
+
 return (
   <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
     
@@ -311,7 +363,13 @@ return (
   </div>
 </Link>
       <div className="flex flex-col gap-6">
-        {/* Hier kunnen je andere knoppen later in */}
+        <button 
+    onClick={() => setIsSettingsOpen(true)}
+    title="Manuscript Stijl Instellingen"
+    className="mt-auto p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer mb-4"
+  >
+    <Settings size={24} />
+  </button>
       </div>
     </aside>
 
@@ -519,6 +577,72 @@ setSelectedSceneIds(newSelected);
         ))}
       </div>
     </main>
+    {/* MODAL VOOR SCHRIJFSTIJL INSTELLINGEN */}
+{isSettingsOpen && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-stone-100 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-300 animate-in fade-in zoom-in duration-200">
+      
+      {/* Header */}
+      <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-white">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-stone-900 flex items-center gap-2">
+            <Settings size={20} className="text-stone-400" />
+            Manuscript Schrijfstijl
+          </h2>
+          <p className="text-xs text-stone-500 mt-1">
+            Project: <span className="font-bold text-stone-700">{selectedProject?.title || "Laden..."}</span>
+          </p>
+        </div>
+        <button 
+          onClick={() => setIsSettingsOpen(false)} 
+          className="p-2 hover:bg-stone-100 rounded-full transition-colors text-stone-400"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+          <h4 className="text-[11px] font-bold text-amber-900 uppercase tracking-widest mb-1">Instructie voor de AI</h4>
+          <p className="text-[11px] text-amber-800 leading-relaxed">
+            Plak hier de specifieke <strong>STAP 1: ANALYSE</strong> en <strong>STAP 2: RICHTLIJNEN</strong>. 
+            Deze tekst fungeert als het 'DNA' van je manuscript en wordt bij elke proza-generatie meegestuurd naar Gemini.
+          </p>
+        </div>
+        
+        <div className="relative">
+          <textarea
+            value={writingStyle}
+            onChange={(e) => setWritingStyle(e.target.value)}
+            className="w-full h-[50vh] p-6 bg-white border border-stone-300 rounded-2xl font-mono text-xs leading-relaxed focus:ring-2 focus:ring-orange-800 focus:border-transparent outline-none shadow-inner resize-none"
+            placeholder="Bijv: ### STAP 1: ANALYSE (Verplicht)..."
+          />
+          <div className="absolute bottom-4 right-6 text-[10px] text-stone-400 font-mono">
+            {writingStyle.length} karakters
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="p-6 bg-stone-50 border-t border-stone-200 flex justify-end gap-3">
+        <button 
+          onClick={() => setIsSettingsOpen(false)}
+          className="px-6 py-2.5 rounded-full font-bold text-xs text-stone-500 hover:bg-stone-200 transition-all"
+        >
+          Annuleren
+        </button>
+        <button 
+          onClick={saveWritingStyle}
+          disabled={isSaving}
+          className="bg-orange-800 text-white px-8 py-2.5 rounded-full font-bold text-xs shadow-lg hover:bg-orange-900 transition-all flex items-center gap-2"
+        >
+          {isSaving ? 'Bezig met opslaan...' : 'Stijl Vastleggen'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
   </div>
 );
 } // Deze sluit de export default function ArchitectuurPage

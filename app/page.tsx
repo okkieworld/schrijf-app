@@ -34,45 +34,64 @@ const [selectedScene, setSelectedScene] = useState<any>(null);
 
 // Zorg dat 'async' hier staat voor (project: any)
 const selectProject = async (project: any) => {
+  // 1. Zet het geselecteerde project in de state (inclusief de nieuwe writing_style)
   setSelectedProject(project);
 
-  // 1. Haal de hoofdstukken op inclusief de proza
-  const { data: chaptersData } = await supabase
-    .from('chapters')
-    .select(`
-      *,
-      scenes (
-        prose
-      )
-    `)
-    .eq('project_id', project.id)
-    .order('ord');
-  
-  const fetchedChapters = chaptersData || [];
-  setChapters(fetchedChapters);
+  try {
+    // 2. Haal de hoofdstukken op inclusief de scenes
+    const { data: chaptersData, error: chapError } = await supabase
+      .from('chapters')
+      .select(`
+        *,
+        scenes (*)
+      `)
+      .eq('project_id', project.id)
+      .order('ord');
 
-  // 2. Bereken totaal
-  let totaal = 0;
-  fetchedChapters.forEach(ch => {
-    ch.scenes?.forEach((s: any) => {
-      if (s.prose) {
-        totaal += s.prose.trim().split(/\s+/).filter(Boolean).length;
+    if (chapError) throw chapError;
+
+    const fetchedChapters = chaptersData || [];
+    setChapters(fetchedChapters);
+
+    // 3. Organiseer de scenes per hoofdstuk voor de zijbalk-state
+    const scenesMap: Record<string, any[]> = {};
+    let totaalWoorden = 0;
+
+    fetchedChapters.forEach((ch) => {
+      if (ch.scenes) {
+        // Sorteer scenes op order_index
+        const sortedScenes = [...ch.scenes].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+        scenesMap[ch.id] = sortedScenes;
+
+        // Tel woorden
+        sortedScenes.forEach((s: any) => {
+          if (s.prose) {
+            totaalWoorden += s.prose.trim().split(/\s+/).filter(Boolean).length;
+          }
+        });
       }
     });
-  });
-  setTotalWords(totaal);
 
-  // 3. Haal de Codex data op
-  const { data: characters } = await supabase.from('characters').select('*').eq('project_id', project.id);
-  const { data: locations } = await supabase.from('locations').select('*').eq('project_id', project.id);
-  const { data: items } = await supabase.from('items').select('*').eq('project_id', project.id);
-  
-  setCodexData({
-    characters: characters || [],
-    locations: locations || [],
-    items: items || []
-  });
-}; // Zorg dat dit afsluitende haakje goed staat
+    setScenes(scenesMap);
+    setTotalWords(totaalWoorden);
+
+    // 4. Haal de Codex data op
+    const [charRes, locRes, itemRes] = await Promise.all([
+      supabase.from('characters').select('*').eq('project_id', project.id),
+      supabase.from('locations').select('*').eq('project_id', project.id),
+      supabase.from('items').select('*').eq('project_id', project.id)
+    ]);
+
+    setCodexData({
+      characters: charRes.data || [],
+      locations: locRes.data || [],
+      items: itemRes.data || []
+    });
+
+  } catch (error) {
+    console.error("Fout bij laden projectgegevens:", error);
+  }
+}; // Dit sluit de functie correct af
 
 const toggleChapter = async (chapterId: string) => {
   // 1. Data ophalen als we die nog niet hebben
@@ -409,33 +428,29 @@ const generateProsePrompt = () => {
     return;
   }
 
-  // 1. Zoek de karakterschets van de POV in de Codex
+  // 1. Haal de dynamische schrijfstijl op uit het geselecteerde project
+  // We gebruiken een fallback-tekst voor als er nog niets is ingevuld in de database.
+  const dynamicStyle = selectedProject?.writing_style || `
+Opdracht: Herschrijf de onderstaande scène.
+### STAP 1: ANALYSE
+Analyseer de scène kort.
+### STAP 2: DE SCÈNE SCHRIJVEN
+Schrijf de scène op basis van de analyse.
+  `.trim();
+
+  // 2. Zoek de karakterschets van de POV in de Codex
   const povCharacter = codexData.characters.find(
     (c: any) => c.name === selectedScene.pov
   );
   
-  // 2. Zoek de karakterschetsen van alle overige aanwezigen
+  // 3. Zoek de karakterschetsen van alle overige aanwezigen
   const involvedCharacters = codexData.characters.filter((c: any) => 
     selectedScene.involved_characters?.includes(c.name) && c.name !== selectedScene.pov
   );
 
-  // 3. De prompt met jouw specifieke Nederlandse tekst en de data-koppeling
-const prompt = `
-Opdracht: Herschrijf de onderstaande scène als een klinische thriller-expert in de stijl van Dan Brown.
-
-### STAP 1: ANALYSE (Verplicht eerst uitvoeren)
-Noteer kort voordat je de scène schrijft:
-1. Materiaal-check: Welke fysieke objecten zijn aanwezig? (Textuur, temperatuur, staat).
-2. POV-Filter: Hoe vertaalt de 'perception_filter' van het personage zich naar deze specifieke ruimte?
-3. Dialoog-stempel: Hoe wordt de 'dialogue_style' van de aanwezigen toegepast op de subtext?
-
-### STAP 2: DE SCÈNE SCHRIJVEN
-Hanteer deze strikte richtlijnen:
-- Geen Personificatie: Objecten ademen, fluisteren, wachten of bespotten niet.
-- Klinische POV: Beschrijf de omgeving uitsluitend via de technische expertise van het POV-personage.
-- Materiële Focus: Focus op gewicht, lichtinval, resolutie, hardware en fysieke weerstand.
-- Expert-Dialoog: Gebruik de specifieke stemvoering uit de Codex. Geen algemene 'boekentaal'.
-- Blacklist (STRIKT VERBODEN): ademen, fluisteren, aura, essence, mysterieus, voorbestemd, ziel, trillen, schaduw, droom, voelen (als emotie).
+  // 4. Bouw de volledige prompt
+  const prompt = `
+${dynamicStyle}
 
 ### RELEVANTE FEITEN UIT DE CODEX:
 - POV PERSONAGE: ${selectedScene.pov || "Onbekend"}
@@ -456,8 +471,9 @@ ${involvedCharacters.length > 0
 """${prose || "Geen ruwe proza aanwezig. Genereer een nieuwe scène op basis van de bovenstaande data en de Scenekaart."}"""
 `;
 
+  // 5. Kopieer naar klembord
   navigator.clipboard.writeText(prompt);
-  alert("Schrijf-prompt inclusief karakterschetsen gekopieerd!");
+  alert("Schrijf-prompt met project-specifieke stijl gekopieerd!");
 };
 
 
