@@ -43,12 +43,55 @@ export default function BeheerPage() {
     init();
   }, []);
 
-  const fetchData = async (id: any) => {
-    const { data: chars } = await supabase.from('characters').select('*').eq('project_id', id).order('name');
-    const { data: locs } = await supabase.from('locations').select('*').eq('project_id', id).order('name');
-    const { data: its } = await supabase.from('items').select('*').eq('project_id', id).order('name');
-    setData({ characters: chars || [], locations: locs || [], items: its || [] });
-  };
+const fetchData = async () => {
+  // 1. Haal het actieve project op
+  const { data: proj } = await supabase.from('projects').select('*').limit(1).single();
+  if (!proj) return;
+  setSelectedProject(proj);
+
+  // 2. Haal de hoofdstukken van dit project op
+  const { data: chapters } = await supabase
+    .from('chapters')
+    .select('id')
+    .eq('project_id', proj.id);
+
+  if (!chapters || chapters.length === 0) return;
+  const chapterIds = chapters.map(c => c.id);
+
+  // 3. Haal de scènes op
+  const { data: scns } = await supabase
+    .from('scenes')
+    .select('*')
+    .in('chapter_id', chapterIds) 
+    .order('order_index', { ascending: true });
+
+  // 4. Haal ALLE karakters van dit project op (voor de POV namen)
+  const { data: chars } = await supabase
+    .from('characters')
+    .select('id, name') // We weten nu zeker dat 'id' en 'name' bestaan
+    .eq('project_id', proj.id);
+
+  // 5. Locaties ophalen
+  const { data: locs } = await supabase
+    .from('locations')
+    .select('*')
+    .eq('project_id', proj.id);
+
+  // 6. DE KOPPELING: Hier voegen we de 'pov_name' toe
+  const scenesWithPov = (scns || []).map(scene => {
+    // We vergelijken de ID's als strings voor de zekerheid
+    const povCharacter = chars?.find(c => String(c.id) === String(scene.pov_id));
+    
+    return {
+      ...scene,
+      // Als we een match vinden, pakken we 'name', anders null
+      pov_name: povCharacter ? povCharacter.name : null
+    };
+  });
+
+  setScenes(scenesWithPov);
+  setLocations(locs || []);
+};
 
   const activeItem = data[activeCategory]?.find((item: any) => item.id === selectedId);
 
@@ -288,8 +331,52 @@ const renderTabContent = () => {
         <div className="grid grid-cols-1 gap-6">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Rol / Titel" value={activeItem.role} onChange={(v: any) => handleFieldChange(activeItem.id, 'role', v)} />
-            <Field label="Leeftijd" value={activeItem.age} onChange={(v: any) => handleFieldChange(activeItem.id, 'age', v)} />
+            <Field label="Leeftijd / Periode" value={activeItem.age} onChange={(v: any) => handleFieldChange(activeItem.id, 'age', v)} />
           </div>
+
+          {/* NIEUW: Hiërarchie velden specifiek voor LOCATIES */}
+          {activeCategory === 'locations' && (
+            <div className="bg-stone-50 p-6 rounded-2xl border border-stone-200 space-y-4 shadow-sm">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-400 flex items-center gap-2">
+                <MapPin size={12} /> Locatie Structuur (Lanes)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Hoofdlocatie checkbox */}
+                <label className="flex items-center gap-3 cursor-pointer p-3 bg-white rounded-xl border border-stone-100 hover:border-orange-200 transition-all">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-stone-300 text-orange-800 focus:ring-orange-800"
+                    checked={activeItem.is_major_location || false}
+                    onChange={(e) => handleFieldChange(activeItem.id, 'is_major_location', e.target.checked)}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-stone-700 uppercase">Hoofdlocatie</span>
+                    <span className="text-[10px] text-stone-400 italic">Krijgt een eigen Lane</span>
+                  </div>
+                </label>
+
+                {/* Ouder-locatie selectie */}
+                {!activeItem.is_major_location && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 ml-1">Valt onder:</label>
+                    <select 
+                      className="w-full bg-white border border-stone-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all appearance-none"
+                      value={activeItem.parent_location_id || ""}
+                      onChange={(e) => handleFieldChange(activeItem.id, 'parent_location_id', e.target.value || null)}
+                    >
+                      <option value="">— Geen (Losstaand) —</option>
+                      {data.locations
+                        .filter((l: any) => l.is_major_location && l.id !== activeItem.id)
+                        .map((l: any) => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <Field label="Korte Samenvatting" area value={activeItem.description} onChange={(v: any) => handleFieldChange(activeItem.id, 'description', v)} />
           <Field label="Achtergrondverhaal (Backstory)" area value={activeItem.backstory} onChange={(v: any) => handleFieldChange(activeItem.id, 'backstory', v)} />
           <Field label="Extra Notities" area value={activeItem.notes} onChange={(v: any) => handleFieldChange(activeItem.id, 'notes', v)} />
@@ -303,43 +390,37 @@ const renderTabContent = () => {
           <Field label="Littekens & Merken" value={activeItem.scars_marks} onChange={(v: any) => handleFieldChange(activeItem.id, 'scars_marks', v)} />
         </div>
       );
-case 'psychologie':
+    case 'psychologie':
       return (
         <div className="grid grid-cols-1 gap-6">
-          {/* De cruciale 'Expert-bril' voor de AI */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field 
               label="Waarneming (Perception Filter)" 
               area 
               value={activeItem.perception_filter} 
               onChange={(v: any) => handleFieldChange(activeItem.id, 'perception_filter', v)}
-              placeholder="Hoe ziet dit personage de wereld fysiek? (Systemen, materie, risico's...)"
+              placeholder="Hoe ziet dit personage de wereld fysiek?"
             />
             <Field 
               label="Stemvoering (Dialogue Style)" 
               area 
               value={activeItem.dialogue_style} 
               onChange={(v: any) => handleFieldChange(activeItem.id, 'dialogue_style', v)}
-              placeholder="Specifieke spreekregels (bijv. Jonas: informeel, 'handelstaal')."
+              placeholder="Specifieke spreekregels."
             />
           </div>
-
-          <hr className="border-gray-800 my-2" />
-
-          {/* De psychologische onderstroom */}
-                    <div className="grid grid-cols-2 gap-4">
-<Field label="Persoonlijkheid (Innerlijke Stem)" area value={activeItem.personality} onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} />
-          <Field label="Motivatie" area value={activeItem.motivation} onChange={(v: any) => handleFieldChange(activeItem.id, 'motivation', v)} />
+          <hr className="border-stone-200 my-2" />
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Persoonlijkheid (Innerlijke Stem)" area value={activeItem.personality} onChange={(v: any) => handleFieldChange(activeItem.id, 'personality', v)} />
+            <Field label="Motivatie" area value={activeItem.motivation} onChange={(v: any) => handleFieldChange(activeItem.id, 'motivation', v)} />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <Field label="Grootste Verlangens" area value={activeItem.desires} onChange={(v: any) => handleFieldChange(activeItem.id, 'desires', v)} />
             <Field label="Angsten" area value={activeItem.fears} onChange={(v: any) => handleFieldChange(activeItem.id, 'fears', v)} />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
-              <Field label="Sterktes" area value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
-              <Field label="Zwaktes" area value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
+            <Field label="Sterktes" area value={activeItem.strengths} onChange={(v: any) => handleFieldChange(activeItem.id, 'strengths', v)} />
+            <Field label="Zwaktes" area value={activeItem.weaknesses} onChange={(v: any) => handleFieldChange(activeItem.id, 'weaknesses', v)} />
           </div>
         </div>
       );

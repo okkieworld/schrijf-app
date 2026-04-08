@@ -76,11 +76,17 @@ const selectProject = async (project: any) => {
     setTotalWords(totaalWoorden);
 
     // 4. Haal de Codex data op
-    const [charRes, locRes, itemRes] = await Promise.all([
-      supabase.from('characters').select('*').eq('project_id', project.id),
-      supabase.from('locations').select('*').eq('project_id', project.id),
-      supabase.from('items').select('*').eq('project_id', project.id)
-    ]);
+const [charRes, locRes, itemRes] = await Promise.all([
+  supabase.from('characters').select('*').eq('project_id', project.id).order('name'),
+  // We voegen hier .order('is_major_location', { ascending: false }) toe 
+  // zodat Hoofdlocaties altijd bovenaan de data-set staan.
+  supabase.from('locations')
+    .select('*')
+    .eq('project_id', project.id)
+    .order('is_major_location', { ascending: false })
+    .order('name'),
+  supabase.from('items').select('*').eq('project_id', project.id).order('name')
+]);
 
     setCodexData({
       characters: charRes.data || [],
@@ -755,21 +761,91 @@ onClick={() => handleSceneChange(s)}
   </section>
 
   {/* SETTING */}
-  <section className="group">
-    <div className="flex justify-between items-center">
-      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Setting</label>
-      {editingId !== `edit-setting` && (
-        <button onClick={() => { setEditingId(`edit-setting`); setTempTitle(selectedScene.setting || ""); }} className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-orange-900 transition-all">
-          <PenTool size={10} />
-        </button>
-      )}
-    </div>
-    {editingId === `edit-setting` ? (
-      <input autoFocus className="w-full text-sm p-1 bg-white border border-orange-300 rounded outline-none" value={tempTitle} onChange={(e) => setTempTitle(e.target.value)} onBlur={() => updateSceneField(selectedScene.id, 'setting', tempTitle)} onKeyDown={(e) => e.key === 'Enter' && updateSceneField(selectedScene.id, 'setting', tempTitle)} />
-    ) : (
-      <p className="text-sm text-stone-700 mt-0.5">{selectedScene.setting || "—"}</p>
-    )}
-  </section>
+{/* TIJD & LOCATIE SECTIE */}
+<div className="space-y-4 border-b border-stone-200 pb-6 mb-6">
+  <div className="flex items-center gap-2 text-stone-400 uppercase text-[10px] font-bold tracking-widest mb-2">
+    <MapPin size={14} /> Tijd & Locatie
+  </div>
+
+{/* 1. LOCATIE SELECTIE (Met Hiërarchie) */}
+<section className="group">
+  <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Locatie (Lane)</label>
+  <select 
+    className="w-full text-sm p-1 bg-white border border-stone-200 rounded outline-none mt-1 focus:border-orange-300 transition-colors font-medium"
+    value={selectedScene.location_id || ""}
+    onChange={(e) => updateSceneField(selectedScene.id, 'location_id', e.target.value || null)}
+  >
+    <option value="">— Selecteer Locatie —</option>
+    
+    {/* 1. We tonen eerst de Hoofdlocaties als koppen (optgroups) */}
+    {codexData.locations
+      .filter((loc: any) => loc.is_major_location)
+      .map((majorLoc: any) => (
+        <optgroup key={majorLoc.id} label={majorLoc.name.toUpperCase()} className="text-stone-900 font-bold bg-stone-50">
+          {/* De Hoofdlocatie zelf is ook een optie voor als een scène 'algemeen' daar plaatsvindt */}
+          <option value={majorLoc.id} className="font-semibold">{majorLoc.name} (Algemeen)</option>
+          
+          {/* Dan alle sub-locaties die bij deze hoofdlocatie horen */}
+          {codexData.locations
+            .filter((sub: any) => sub.parent_location_id === majorLoc.id)
+            .map((subLoc: any) => (
+              <option key={subLoc.id} value={subLoc.id} className="pl-4">
+                &nbsp;&nbsp;— {subLoc.name}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+
+    {/* 2. Overige losse locaties (geen hoofdlocatie en geen ouder) */}
+    <optgroup label="OVERIG" className="text-stone-400 italic bg-stone-50">
+      {codexData.locations
+        .filter((loc: any) => !loc.is_major_location && !loc.parent_location_id)
+        .map((otherLoc: any) => (
+          <option key={otherLoc.id} value={otherLoc.id}>{otherLoc.name}</option>
+        ))}
+    </optgroup>
+  </select>
+</section>
+
+  {/* 2. TIJDSTIP & DUUR (Grid) */}
+  <div className="grid grid-cols-2 gap-3">
+    <section>
+      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Starttijd</label>
+      <input 
+        type="datetime-local"
+        className="w-full text-[11px] p-1 bg-white border border-stone-200 rounded outline-none mt-1 focus:border-orange-300"
+        value={selectedScene.start_time ? new Date(selectedScene.start_time).toISOString().slice(0, 16) : ""}
+        onChange={(e) => updateSceneField(selectedScene.id, 'start_time', e.target.value)}
+      />
+    </section>
+    
+    <section>
+      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Duur (min)</label>
+      <input 
+        type="number"
+        min="1"
+        className="w-full text-sm p-1 bg-white border border-stone-200 rounded outline-none mt-1 focus:border-orange-300"
+        value={selectedScene.duration_mins || 15}
+        onChange={(e) => updateSceneField(selectedScene.id, 'duration_mins', parseInt(e.target.value) || 0)}
+      />
+    </section>
+  </div>
+
+  {/* 3. FLASHBACK CHECKBOX */}
+  <div className="pt-2">
+    <label className="flex items-center gap-2 cursor-pointer group">
+      <input 
+        type="checkbox"
+        className="w-3 h-3 rounded border-stone-300 text-orange-600 focus:ring-orange-500"
+        checked={selectedScene.is_flashback || false}
+        onChange={(e) => updateSceneField(selectedScene.id, 'is_flashback', e.target.checked)}
+      />
+      <span className="text-[10px] font-bold uppercase tracking-tight text-stone-500 group-hover:text-orange-900 transition-colors">
+        Dit is een flashback
+      </span>
+    </label>
+  </div>
+</div>
 </div>
 
                 <div className="space-y-4">
