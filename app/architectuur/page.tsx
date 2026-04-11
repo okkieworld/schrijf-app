@@ -1,357 +1,648 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  Layout, Save, MoveHorizontal, MapPin, User, 
-  Clock, Link as LinkIcon, Settings, X, ChevronRight, 
-  Layers, ArrowRight
-} from 'lucide-react';
+import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2, GripVertical, Settings, X } from 'lucide-react';
 import Link from 'next/link';
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const hours = Array.from({ length: 24 }, (_, i) => i);
-
-export default function MontageKamer() {
-  const [scenes, setScenes] = useState<any[]>([]);
-  const [locations, setLocations] = useState<any[]>([]);
+export default function ArchitectuurPage() {
+  const [chapters, setChapters] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [draggedScene, setDraggedScene] = useState<any>(null);
+  const [draggedChapter, setDraggedChapter] = useState<any>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(new Set());
   const [selectedProject, setSelectedProject] = useState<any>(null);
+const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+const [writingStyle, setWritingStyle] = useState("");
 
 
-const fetchData = async () => {
-  // 1. Project ophalen
-  const { data: proj } = await supabase.from('projects').select('*').limit(1).single();
-  if (!proj) return;
-  setSelectedProject(proj);
 
-  // 2. Hoofdstukken ophalen
-  const { data: chapters } = await supabase
-    .from('chapters')
-    .select('id')
-    .eq('project_id', proj.id);
 
-  if (!chapters || chapters.length === 0) return;
-  const chapterIds = chapters.map(c => c.id);
+  // 1. Data ophalen: Hoofdstukken + Scènes + POV + Locatie
+// Voeg deze state toe bovenaan je component
+const [unassignedScenes, setUnassignedScenes] = useState<any[]>([]);
 
-  // 3. Parallel alles ophalen (NU pas maken we scns en chars aan)
-  const [scenesRes, charsRes, locsRes] = await Promise.all([
-    supabase.from('scenes').select('*').in('chapter_id', chapterIds).order('order_index', { ascending: true }),
-    supabase.from('characters').select('id, name').eq('project_id', proj.id),
-    supabase.from('locations').select('*').eq('project_id', proj.id)
-  ]);
+const fetchStructure = async () => {
+  try {
+    // 1. Haal alle hoofdstukken op
+    const { data: allChapters, error: chapError } = await supabase
+      .from('chapters')
+      .select('*')
+      .order('ord', { ascending: true });
 
-  const scns = scenesRes.data || [];
-  const chars = charsRes.data || [];
-  const locs = locsRes.data || [];
+    // 2. Haal alle scènes op
+    const { data: allScenes, error: sceneError } = await supabase
+      .from('scenes')
+      .select(`
+        id, 
+        title, 
+        summary, 
+        order_index, 
+        chapter_id,
+        status,
+        pov,
+        setting,
+        purpose,
+        conflict,
+        outcome,
+        prose
+      `);
 
-  // --- DEBUGGING (Nu staan ze op de juiste plek) ---
-  if (scns.length > 0 && chars.length > 0) {
-    console.log("DEBUG: Eerste waarde in 'pov' kolom van scenes:", scns[0].pov);
-    console.log("DEBUG: Eerste ID in characters tabel:", chars[0].id);
-  }
+    if (chapError || sceneError) {
+      console.error("Database details:", chapError || sceneError);
+      return;
+    }
 
-  // 4. De koppeling met fallback
-  const scenesWithPov = scns.map(scene => {
-    const rawPovValue = scene.pov;
+    // 3. Haal Project-informatie op (voor de writing_style)
+    // We gaan ervan uit dat hoofdstukken gekoppeld zijn aan een project_id
+    if (allChapters && allChapters.length > 0) {
+      const projectId = allChapters[0].project_id;
+      
+      const { data: projectData, error: projError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (!projError && projectData) {
+        setSelectedProject(projectData);
+        setWritingStyle(projectData.writing_style || "");
+      }
+    }
+
+    // 4. Formatteer de data voor de UI
+    const formattedChapters = allChapters.map(ch => ({
+      ...ch,
+      scenes: (allScenes || [])
+        .filter(s => s.chapter_id === ch.id)
+        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+    }));
+
+    // 5. Update states
+    setChapters(formattedChapters);
+    setUnassignedScenes((allScenes || []).filter(s => !s.chapter_id));
     
-    // Probeer match op ID
-    const charMatch = chars.find(c => 
-      String(c.id).trim().toLowerCase() === String(rawPovValue).trim().toLowerCase()
-    );
+  } catch (err) {
+    console.error("Systeemfout:", err);
+  }
+};
 
-    return {
-      ...scene,
-      // Als er geen match is, tonen we de ruwe waarde uit de DB zodat we zien wat er staat
-      pov_name: charMatch ? charMatch.name : (rawPovValue ? `DB: ${rawPovValue}` : "GEEN DATA")
-    };
-  });
+  useEffect(() => { fetchStructure(); }, []);
 
-  console.log("Matches gevonden:", scenesWithPov.filter(s => !s.pov_name.startsWith('DB:')).length);
+  // 2. Drag & Drop Logica
+  const handleDragStart = (scene: any) => setDraggedScene(scene);
 
-  setScenes(scenesWithPov);
-  setLocations(locs);
+  const onDrop = (targetChapterId: string, targetIndex: number) => {
+    if (!draggedScene) return;
+
+    const newChapters = [...chapters];
+    // Verwijder uit oud hoofdstuk
+    newChapters.forEach(ch => {
+      ch.scenes = ch.scenes.filter((s: any) => s.id !== draggedScene.id);
+    });
+
+    // Voeg toe aan nieuw hoofdstuk
+    const targetChapter = newChapters.find(ch => ch.id === targetChapterId);
+    if (targetChapter) {
+      targetChapter.scenes.splice(targetIndex, 0, { ...draggedScene, chapter_id: targetChapterId });
+      // Herindexeer
+      targetChapter.scenes = targetChapter.scenes.map((s: any, i: number) => ({ ...s, order_index: i }));
+    }
+
+    setChapters(newChapters);
+    setIsDirty(true);
+    setDraggedScene(null);
+  };
+const onChapterDragStart = (chapter: any) => {
+    setDraggedChapter(chapter);
+    setDraggedScene(null); // Zorg dat we niet tegelijk een scene slepen
+  };
+
+  const onChapterDrop = (targetIndex: number) => {
+    if (!draggedChapter) return;
+
+    const newChapters = [...chapters];
+    const currentIndex = newChapters.findIndex(ch => ch.id === draggedChapter.id);
+    
+    // Verplaats het hoofdstuk in de lijst
+    newChapters.splice(currentIndex, 1);
+    newChapters.splice(targetIndex, 0, draggedChapter);
+
+    setChapters(newChapters);
+    setIsDirty(true);
+    setDraggedChapter(null);
+  };
+  // 3. Opslaan naar Database
+const saveChanges = async () => {
+  setIsSaving(true);
+  try {
+    // A. UPDATE HOOFDSTUK VOLGORDE
+    // We maken een lijstje van alle hoofdstukken met hun nieuwe 'ord' (plek in de rij)
+    const chapterUpdates = chapters.map((ch, i) => ({
+      id: ch.id,
+      title: ch.title,
+      project_id: ch.project_id, // Zorg dat project_id mee gaat als dat verplicht is
+      ord: i + 1                 // De nieuwe positie: 1, 2, 3...
+    }));
+
+    const { error: chError } = await supabase
+      .from('chapters')
+      .upsert(chapterUpdates, { onConflict: 'id' });
+
+    if (chError) {
+      console.error("Fout bij hoofdstukken:", chError.message);
+      throw new Error("Hoofdstuk volgorde kon niet worden opgeslagen.");
+    }
+
+    // B. UPDATE SCENE VOLGORDE (Je bestaande logica, maar nu als stap 2)
+const updates = chapters.flatMap((ch) =>
+  ch.scenes.map((s: any, i: number) => ({
+    ...s,            // Behoud alle bestaande velden (prose, titel, etc.)
+    chapter_id: ch.id, // Koppel aan het huidige hoofdstuk in de lijst
+    order_index: i,  // Geef de positie binnen het hoofdstuk
+    ord: i           // Back-up volgorde kolom
+  }))
+);
+
+    const { error: scError } = await supabase
+      .from('scenes')
+      .upsert(updates, { onConflict: 'id' });
+
+    if (scError) throw new Error(scError.message);
+
+    setIsDirty(false);
+    alert('Alles succesvol opgeslagen: Hoofdstukken én scènes!');
+  } catch (err: any) {
+    console.error("Volledig foutobject:", err);
+    alert(`Fout bij opslaan: ${err.message || 'Onbekende fout'}`);
+  } finally {
+    setIsSaving(false);
+  }
 };
 
 
+// 1. Jouw originele kleurfunctie (voor de felle accenten)
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Idee': return 'bg-purple-400';
+    case 'Outline': return 'bg-blue-400';
+    case 'Concept': return 'bg-amber-400';
+    case 'Eerste Versie': return 'bg-stone-500';
+    case 'Redactie': return 'bg-orange-500';
+    case 'Voltooid': return 'bg-green-500';
+    case 'Archief': return 'bg-red-400';
+    default: return 'bg-stone-200';
+  }
+};
 
-  useEffect(() => { fetchData(); }, []);
+// 2. De nieuwe functie voor de lichte kaart-achtergronden
+const getCardStyle = (status: string) => {
+  switch (status) {
+    case 'Idee': return 'bg-purple-50 border-purple-200 text-purple-900';
+    case 'Outline': return 'bg-blue-50 border-blue-200 text-blue-900';
+    case 'Concept': return 'bg-amber-50 border-amber-200 text-amber-900';
+    case 'Eerste Versie': return 'bg-stone-100 border-stone-300 text-stone-900';
+    case 'Redactie': return 'bg-orange-50 border-orange-200 text-orange-900';
+    case 'Voltooid': return 'bg-green-50 border-green-200 text-green-900';
+    case 'Archief': return 'bg-red-50 border-red-200 text-red-900';
+    default: return 'bg-white border-stone-200 text-stone-900';
+  }
+};
 
-  // 2. LOGICA VOOR LANES
-// 2. LOGICA VOOR LANES (Geoptimaliseerd voor dynamische tijdlijn)
-  const lanes = useMemo(() => {
-    if (scenes.length > 0) {
-    console.log("Scene check in Memo:", scenes[0]);
-  }// Haal de hoofdlocaties op
-    const majorLocations = locations.filter(l => l.is_major_location);
-    const groups: Record<string, any[]> = { "Onbekend": [] };
-    
-    // Initialiseer de groepen
-    majorLocations.forEach(ml => { groups[ml.name] = []; });
+const copySelectedForAI = () => {
+  // De nieuwe instructies als header van de kopieerslag
+  let exportText = `Analyseer de volgende scènes op tempo, logica en narratieve spanning.
+Hanteer de volgende spelregels:
 
-    // BELANGRIJK: Sorteer scènes eerst chronologisch op tijd
-    const sortedScenes = [...scenes].sort((a, b) => {
-      const timeA = a.start_time ? new Date(a.start_time).getTime() : 0;
-      const timeB = b.start_time ? new Date(b.start_time).getTime() : 0;
-      return timeA - timeB;
-    });
+1. Behoud de status quo tenzij: Stel alleen een verschuiving voor als de huidige volgorde de spanning doodt, de logica breekt of een emotionele pay-off te vroeg weggeeft.
+2. Toets aan de 'Vise-methode': Wordt de druk op de hoofdpersoon per scène groter? Zo niet, hoe repareren we dat met de minste impact op de tijdlijn?
+3. Tijd-efficiëntie: Is de fysieke tijd (middag/avond) geloofwaardig voor de acties die plaatsvinden?
+4. Keuze-verantwoording: Als je adviseert om de volgorde te behouden, leg dan uit waarom deze opbouw juist sterk is.
 
-    sortedScenes.forEach(scene => {
-      const loc = locations.find(l => l.id === scene.location_id);
-      
-      if (!loc) {
-        groups["Onbekend"].push(scene);
-      } else {
-        // Zoek de ouder (Major Location)
-        const parent = loc.is_major_location 
-          ? loc 
-          : locations.find(l => l.id === loc.parent_location_id);
-        
-        const laneName = parent ? parent.name : "Onbekend";
-        
-        if (!groups[laneName]) groups[laneName] = [];
-        groups[laneName].push(scene);
-      }
-    });
-
-    return groups;
-  }, [scenes, locations]);
-
-  // 3. OPSLAAN
-  const saveChanges = async () => {
-    setIsSaving(true);
-    const { error } = await supabase.from('scenes').upsert(scenes);
-    if (!error) {
-      setIsDirty(false);
-      alert("Montage opgeslagen!");
-    }
-    setIsSaving(false);
-  };
-// DEBUG HULPMIDDEL: Verwijder dit nadat het werkt
-useEffect(() => {
-  if (scenes.length > 0) {
-    console.log("--- DEBUG DATA CHECK ---");
-    console.log("Aantal scenes:", scenes.length);
-    console.log("Eerste scene data:", {
-      titel: scenes[0].title,
-      location_id: scenes[0].location_id,
-      start_time: scenes[0].start_time,
-      is_flashback: scenes[0].is_flashback
-    });
-    console.log("Aantal locaties:", locations.length);
-    if (locations.length > 0) {
-      console.log("Eerste locatie:", {
-        naam: locations[0].name,
-        is_major: locations[0].is_major_location,
-        parent: locations[0].parent_location_id
+Hier zijn de scènes:
+\n# AI ANALYSE VERZOEK - SELECTIE\n\n`;
+  
+  chapters.forEach(chapter => {
+const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
+    if (selectedInChapter.length > 0) {
+      exportText += `## HOOFDSTUK ${chapter.ord}: ${chapter.title || 'Naamloos'}\n`;
+      selectedInChapter.forEach((scene: any) => {
+        exportText += `### SCÈNE: ${scene.title}\n`;
+        exportText += `- POV: ${scene.pov || 'Onbekend'}\n`;
+        exportText += `- Setting: ${scene.setting || 'onbekend'}\n`;
+        exportText += `- Conflict: ${scene.conflict || 'onbekend'}\n`;
+        exportText += `- Context: ${scene.summary || 'Geen samenvatting'}\n\n`;
       });
     }
+  });
+
+  if (selectedSceneIds.size === 0) {
+    alert("Selecteer eerst een paar scènes door de vinkjes aan te zetten.");
+    return;
   }
-}, [scenes, locations]);
 
-
-// 1. Sleep-logica voor de Master Cut
-const handleDragStart = (e: React.DragEvent, index: number) => {
-  e.dataTransfer.setData('sceneIndex', index.toString());
+  navigator.clipboard.writeText(exportText);
+  alert(`Succes! ${selectedSceneIds.size} scènes inclusief analyse-instructies gekopieerd.`);
 };
 
-const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-  const sourceIndex = parseInt(e.dataTransfer.getData('sceneIndex'));
-  if (sourceIndex === targetIndex) return;
+const exportToWord = (type: 'summary' | 'prose') => {
+  if (selectedSceneIds.size === 0) {
+    alert("Selecteer eerst de scènes die je wilt exporteren via de AI Selectie Modus.");
+    return;
+  }
 
-  const newScenes = [...scenes];
-  const [movedScene] = newScenes.splice(sourceIndex, 1);
-  newScenes.splice(targetIndex, 0, movedScene);
+  // Header van het document
+  let content = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'><title>Export Codex</title></head>
+    <body style="font-family: 'Times New Roman', serif;">
+      <h1 style="text-align: center;">Codex Export: ${type === 'summary' ? 'Samenvattingen' : 'Integrale Proza'}</h1>
+      <hr>
+  `;
 
-  // Update de order_index voor alle scènes op basis van hun nieuwe positie
-  const updatedScenes = newScenes.map((scene, index) => ({
-    ...scene,
-    order_index: index
-  }));
-
-  setScenes(updatedScenes);
-  setIsDirty(true);
-};
-
-const handleDragOver = (e: React.DragEvent) => {
-  e.preventDefault(); // Nodig om drop toe te staan
-};
-
-// 3. BEREKEN UNIEKE TIJDSTIPPEN (De rijen voor je tijdlijn)
-  const uniqueTimes = useMemo(() => {
-    const times = new Set<string>();
+  // Loop door hoofdstukken en scènes
+  chapters.forEach((chapter) => {
+    const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
     
-    scenes.forEach(s => {
-      if (s.start_time) {
-        // We slaan de volledige tijd op zodat we per minuut kunnen groeperen
-        times.add(new Date(s.start_time).toISOString());
-      }
-    });
-
-    // Sorteer de tijden chronologisch
-    return Array.from(times).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-  }, [scenes]);
-
-  return (
-    <div className="flex h-screen bg-stone-900 text-stone-200 overflow-hidden flex-col">
+    if (selectedInChapter.length > 0) {
+      content += `<h2 style="color: #444; margin-top: 30px;">Hoofdstuk ${chapter.ord}: ${chapter.title || 'Naamloos'}</h2>`;
       
-      {/* HEADER & CONTROLS */}
-      <header className="h-16 border-b border-stone-800 flex items-center justify-between px-6 bg-stone-950/50 backdrop-blur-md z-50">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="p-2 hover:bg-stone-800 rounded-lg transition-all text-stone-500 hover:text-white">
-            <ArrowRight className="rotate-180" size={20} />
-          </Link>
-          <h1 className="font-serif text-xl font-bold tracking-tight">Montagekamer <span className="text-stone-600 text-sm font-sans ml-2">/ {selectedProject?.title}</span></h1>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {isDirty && (
-            <button onClick={saveChanges} disabled={isSaving} className="bg-orange-700 hover:bg-orange-600 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-orange-900/20">
-              <Save size={14} /> {isSaving ? 'Opslaan...' : 'Vastleggen'}
-            </button>
-          )}
-        </div>
-      </header>
-
-{/* MASTER CUT (Sticky Top) */}
-<section className="h-48 border-b border-stone-800 bg-stone-900/80 p-4 overflow-x-auto flex items-center gap-4 no-scrollbar">
-  <div className="flex-shrink-0 w-32 border-r border-stone-800 h-full flex flex-col justify-center">
-    <span className="text-[10px] font-black uppercase tracking-widest text-orange-600">Master Cut</span>
-    <p className="text-[10px] text-stone-500 leading-tight">De volgorde van je manuscript</p>
-  </div>
-  
-  <div className="flex gap-3 h-full items-center">
-    {scenes.map((scene, i) => (
-      <div 
-        key={scene.id} 
-        draggable
-        onDragStart={(e) => handleDragStart(e, i)}
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDrop(e, i)}
-        className="w-48 h-32 bg-stone-800 border border-stone-700 rounded-xl p-3 flex-shrink-0 relative group hover:border-orange-800/50 transition-all cursor-move active:scale-95 active:rotate-2 shadow-lg hover:shadow-orange-900/10"
-      >
-        {/* Positie nummering */}
-        <div className="absolute -top-2 -left-2 w-6 h-6 bg-stone-950 rounded-full border border-stone-800 flex items-center justify-center text-[10px] font-bold text-stone-500 group-hover:text-orange-500 group-hover:border-orange-500 transition-colors z-10">
-          {i + 1}
-        </div>
-
-        <h4 className="text-xs font-bold line-clamp-2 mb-1 text-stone-200">
-          {scene.title || "Naamloze scène"}
-        </h4>
-        
-        <p className="text-[10px] text-stone-500 line-clamp-2 italic leading-tight">
-          {scene.summary || "Geen samenvatting..."}
-        </p>
-
-        {/* Status Indicators */}
-        <div className="absolute bottom-2 left-3 flex items-center gap-2">
-           {scene.is_flashback && (
-             <span className="text-[8px] text-blue-400 font-bold uppercase tracking-tighter">Flashback</span>
-           )}
-        </div>
-        
-        <div className="absolute bottom-2 right-2 flex gap-1 items-center">
-          <span className="text-[8px] text-stone-600 font-mono mr-1">
-            {scene.duration_mins ? `${scene.duration_mins}m` : ''}
-          </span>
-          <div className={`w-1.5 h-1.5 rounded-full ${scene.is_flashback ? 'bg-blue-400 animate-pulse' : 'bg-green-500'}`} />
-        </div>
-      </div>
-    ))}
-  </div>
-</section>
-
-{/* LANES (Scrollable Body met Tijd-as) */}
-<main className="flex-1 overflow-auto bg-stone-900/50 relative no-scrollbar">
-  {/* TIJD-BALK BOVENIN (Sticky) */}
-  <div className="sticky top-0 z-30 flex bg-stone-950/90 backdrop-blur-md border-b border-stone-800 ml-48">
-    {uniqueTimes.map(time => (
-      <div key={time} className="w-72 flex-shrink-0 p-4 border-r border-stone-800/50">
-        <span className="text-[10px] font-black text-orange-600 uppercase block">
-          {new Date(time).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' })}
-        </span>
-        <span className="text-sm font-mono text-stone-200">
-          {new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-    ))}
-  </div>
-
-  {/* DE RIJEN (Locaties) */}
-  <div className="flex flex-col">
-    {Object.entries(lanes).map(([laneName, laneScenes]) => (
-      <div key={laneName} className="flex border-b border-stone-800/50 group min-h-[160px]">
-        
-        {/* LOCATIE LABEL (Sticky Links) */}
-        <div className="w-48 flex-shrink-0 sticky left-0 z-20 bg-stone-900 border-r border-stone-700 p-4 flex flex-col justify-center shadow-xl">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-stone-400 group-hover:text-orange-500 transition-colors flex items-center gap-2">
-            <MapPin size={12} /> {laneName}
-          </h3>
-          <span className="text-[9px] text-stone-600 mt-1 font-mono">{laneScenes.length} scènes</span>
-        </div>
-
-        {/* DE SCÈNES (Horizontaal) */}
-<div className="flex relative">
-  {/* Verbindingslijn die door de hele rij loopt (achter de kaartjes langs) */}
-  <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-stone-800/40 z-0"></div>
-
-  {uniqueTimes.map(time => {
-    const scene = laneScenes.find(s => s.start_time && new Date(s.start_time).toISOString() === time);
-    
-    // We gebruiken hier de pov_name die we in de fetchData handmatig hebben gekoppeld
-    const povName = scene?.pov_name;
-
-    return (
-      <div key={time} className="w-72 flex-shrink-0 p-3 relative flex items-center justify-center border-r border-stone-800/10 z-10">
-        {scene ? (
-          <div className={`w-full h-36 p-4 rounded-2xl border transition-all hover:scale-[1.05] hover:z-50 cursor-pointer shadow-2xl relative flex flex-col justify-between
-            ${scene.is_flashback 
-              ? 'border-dashed border-blue-900/40 bg-blue-950/20 shadow-blue-900/10' 
-              : 'bg-stone-800 border-stone-700 hover:border-orange-500/50 hover:bg-stone-800/90'}`}
-          >
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[8px] font-bold text-orange-600">CUT #{scenes.findIndex(s => s.id === scene.id) + 1}</span>
-                <span className="text-[8px] text-stone-600 font-mono">{scene.duration_mins}m</span>
-              </div>
-              <h5 className="text-[11px] font-bold text-stone-100 line-clamp-2 leading-tight group-hover:text-orange-100">
-                {scene.title || "Naamloze scène"}
-              </h5>
-            </div>
-            
-            {/* ONDERKANT KAARTJE: POV + Status */}
-            <div className="flex justify-between items-end gap-2">
-              <div className="flex items-center gap-1.5 bg-stone-900/80 px-2 py-1 rounded-lg border border-stone-700/50 shadow-inner max-w-[85%] overflow-hidden">
-                <User size={10} className={povName ? "text-orange-500" : "text-stone-600"} />
-                <span className={`text-[8px] font-black uppercase tracking-tighter truncate ${povName ? "text-stone-300" : "text-stone-600"}`}>
-                  {scene.pov_name || "POV ONBEKEND"}
-                </span>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                {scene.is_flashback && <Layers size={10} className="text-blue-500" />}
-                <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_5px_rgba(0,0,0,0.5)] ${scene.is_flashback ? 'bg-blue-500 shadow-blue-500/40' : 'bg-green-600 shadow-green-600/40'}`} />
-              </div>
+      selectedInChapter.forEach((scene: any, index: number) => {
+        content += `
+          <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="font-size: 14pt;">Scène ${chapter.ord}.${index + 1}: ${scene.title}</h3>
+            <p style="font-size: 10pt; color: #888;">POV: ${scene.pov || 'Onbekend'} | Setting: ${scene.setting || 'Onbekend'}</p>
+            <div style="margin-top: 10px; line-height: 1.6;">
+              ${type === 'summary' 
+                ? `<p><i>${scene.summary || 'Geen samenvatting beschikbaar.'}</i></p>` 
+                : scene.prose || '<i>(Nog geen proza geschreven voor deze scène)</i>'}
             </div>
           </div>
-        ) : (
-          /* Verbindingsknooppunt op de lijn als er geen scène is */
-          <div className="w-1.5 h-1.5 rounded-full bg-stone-800 border border-stone-700/50 z-0" />
-        )}
-      </div>
-    );
-  })}
-</div>
-      </div>
-    ))}
-  </div>
-</main>
+        `;
+      });
+    }
+  });
 
+  content += `</body></html>`;
+
+  // Bestand downloaden
+  const fileName = `Export_${type}_${new Date().toISOString().split('T')[0]}.doc`;
+  const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  link.click();
+};
+
+const toggleChapterSelection = (chapter: any) => {
+  const sceneIdsInChapter = chapter.scenes.map((s: any) => s.id);
+  const newSelection = new Set(selectedSceneIds);
+  
+  // Check of alle scenes van dit hoofdstuk al geselecteerd zijn
+  const allSelected = sceneIdsInChapter.every((id: string) => selectedSceneIds.has(id));
+
+  if (allSelected) {
+    // Deselecteer alles van dit hoofdstuk
+    sceneIdsInChapter.forEach((id: string) => newSelection.delete(id));
+  } else {
+    // Selecteer alles van dit hoofdstuk
+    sceneIdsInChapter.forEach((id: string) => newSelection.add(id));
+  }
+
+  setSelectedSceneIds(newSelection);
+};
+
+
+
+// Functie om alleen de schrijfstijl op te slaan
+const saveWritingStyle = async () => {
+  if (!selectedProject) return;
+  setIsSaving(true);
+  try {
+    const { error } = await supabase
+      .from('projects')
+      .update({ writing_style: writingStyle })
+      .eq('id', selectedProject.id);
+
+    if (error) throw error;
+    
+    // Update lokale state zodat het project-object ook weer klopt
+    setSelectedProject({ ...selectedProject, writing_style: writingStyle });
+    setIsSettingsOpen(false);
+    alert("Schrijfstijl succesvol bijgewerkt!");
+  } catch (err: any) {
+    alert("Fout bij opslaan: " + err.message);
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+return (
+  <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
+    
+    {/* 1. DE ZIJBALK (Deze staat goed) */}
+    <aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800 h-screen flex-shrink-0">
+<Link 
+  href="/" 
+  title="Terug naar Editor"
+  onClick={(e) => {
+    e.preventDefault(); // Voorkom de standaard Next.js navigatie
+    window.location.href = "/"; // Forceer een volledige pagina-herlaad
+  }}
+>
+  <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
+    <Edit3 size={24} />
+  </div>
+</Link>
+      <div className="flex flex-col gap-6">
+        <button 
+    onClick={() => setIsSettingsOpen(true)}
+    title="Manuscript Stijl Instellingen"
+    className="mt-auto p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer mb-4"
+  >
+    <Settings size={24} />
+  </button>
+      </div>
+    </aside>
+
+    {/* 2. DE NIEUWE WRAPPER VOOR DE INHOUD */}
+    <main className="flex-1 flex flex-col overflow-hidden p-10">
+      
+      {/* Header (Blijft bovenin staan) */}
+<div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6 flex-shrink-0">
+  {/* Linkerkant: Info */}
+  <div>
+    <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
+    <p className="text-stone-500 italic text-sm">Sleep scènes om te schuiven, of gebruik de AI Selectie voor advies.</p>
+  </div>
+  
+  {/* Rechterkant: Beide functies naast elkaar */}
+  <div className="flex gap-4 items-center">
+    
+    {/* GROEP 1: AI FUNCTIES */}
+    <div className="flex gap-2 bg-stone-100 p-1.5 rounded-full border border-stone-200">
+      <button 
+        onClick={() => setIsSelectionMode(!isSelectionMode)}
+        className={`px-4 py-1.5 rounded-full font-bold text-[11px] transition-all ${
+          isSelectionMode 
+            ? 'bg-orange-800 text-white shadow-inner' 
+            : 'bg-white text-stone-600 hover:bg-stone-50'
+        }`}
+      >
+        {isSelectionMode ? 'Selectie stoppen' : 'AI Selectie Modus'}
+      </button>
+
+{isSelectionMode && (
+  <div className="flex gap-2 animate-in fade-in slide-in-from-right-4">
+    {/* Bestaande AI Knop */}
+    <button 
+      onClick={copySelectedForAI}
+      className="bg-stone-900 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-md hover:bg-black transition-all flex items-center gap-2"
+    >
+      <Share2 size={12} /> Voor Gemini
+    </button>
+
+    {/* NIEUW: Word Export Samenvatting */}
+    <button 
+      onClick={() => exportToWord('summary')}
+      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
+    >
+      <Layout size={12} /> Word (Samenvatting)
+    </button>
+
+    {/* NIEUW: Word Export Proza */}
+    <button 
+      onClick={() => exportToWord('prose')}
+      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
+    >
+      <Edit3 size={12} /> Word (Proza)
+    </button>
+  </div>
+)}
     </div>
-  );
-}
+
+    {/* GROEP 2: OPSLAAN (Alleen bij wijziging) */}
+    {isDirty && (
+      <button 
+        onClick={saveChanges}
+        disabled={isSaving}
+        className="flex items-center gap-2 bg-orange-800 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-900 transition-all scale-105 text-xs"
+      >
+        <Save size={16} />
+        {isSaving ? 'Bezig...' : 'Structuur Vastleggen'}
+      </button>
+    )}
+  </div>
+</div>
+
+      {/* 3. HET SCROLLBARE BOARD (Vangnet + Hoofdstukken) */}
+      <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
+        
+        {/* De Hoofdstukken */}
+{chapters.map((chapter, idx) => (
+          <div 
+            key={chapter.id} 
+            // 1. De hoofddiv is niet meer draggable om scenes de ruimte te geven
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedChapter) {
+                onChapterDrop(idx);
+              } else if (draggedScene) {
+                onDrop(chapter.id, chapter.scenes.length);
+              }
+            }}
+            className={`w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border-2 transition-all duration-200 ${
+              draggedChapter?.id === chapter.id 
+                ? 'opacity-20 border-dashed border-orange-400 scale-95' 
+                : 'border-stone-200'
+            }`}
+          >
+            <div className="mb-4 px-2">
+              <div className="flex items-center gap-2 mb-1">
+                {/* 2. Alleen de badge is draggable: de 'Handgreep' */}
+                <div 
+                  draggable={!isSelectionMode}
+                  onDragStart={(e) => {
+                    e.stopPropagation(); // Voorkom dat scenes mee-draggen
+                    onChapterDragStart(chapter);
+                  }}
+                  onClick={() => isSelectionMode && toggleChapterSelection(chapter)}
+                  className={`flex items-center gap-2 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter transition-all cursor-grab active:cursor-grabbing ${
+                    isSelectionMode 
+                      ? 'hover:bg-orange-700 bg-orange-800' 
+                      : 'bg-orange-800'
+                  } text-white`}
+                >
+                  {/* Grip icoon voor visuele feedback */}
+                  {!isSelectionMode && <GripVertical size={12} className="opacity-50" />}
+                  
+                  {isSelectionMode && (
+                    <div className={`w-3 h-3 rounded-sm border border-white/40 flex items-center justify-center transition-colors ${
+                      chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) 
+                      ? 'bg-white' 
+                      : 'bg-transparent'
+                    }`}>
+                      {chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) && (
+                        <div className="w-1.5 h-1.5 bg-orange-800 rounded-full" />
+                      )}
+                    </div>
+                  )}
+                  <span className="text-[10px] font-black">
+                    Hoofdstuk {chapter.ord}
+                  </span>
+                </div>
+              </div>
+
+              <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
+                {chapter.title || "Naamloos"}
+              </h3>
+            </div>
+
+            {/* SCENES CONTAINER */}
+            <div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
+              {chapter.scenes && chapter.scenes.length > 0 ? (
+                chapter.scenes.map((scene: any, sIdx: number) => (
+                  <div
+                    key={scene.id}
+                    draggable
+                    onDragStart={() => handleDragStart(scene)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { 
+                      e.stopPropagation(); 
+                      onDrop(chapter.id, sIdx); 
+                    }}
+                    className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
+                  >
+                    {isSelectionMode && (
+                      <div className="absolute top-3 left-3 z-20">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 cursor-pointer accent-orange-800 border-2 border-orange-800 rounded shadow-md"
+                          checked={selectedSceneIds.has(scene.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newSelected = new Set(selectedSceneIds);
+                            if (newSelected.has(scene.id)) newSelected.delete(scene.id);
+                            else newSelected.add(scene.id);
+setSelectedSceneIds(newSelected);
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
+                    
+                    <p className={`text-sm font-bold mb-1 pr-6 leading-tight ${isSelectionMode ? 'pl-7' : ''}`}>
+                      {scene.title}
+                    </p>
+
+                    <details className="cursor-pointer mb-3 outline-none">
+                      <summary className="list-none outline-none">
+                        <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
+                          {scene.summary || "Geen samenvatting..."}
+                        </p>
+                        <span className="text-[9px] text-orange-800 font-bold">
+                          [ Klik voor volledige tekst ]
+                        </span>
+                      </summary>
+                      <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
+                        <p className="italic">{scene.summary}</p>
+                        <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
+                          [ Klik hierboven om te sluiten ]
+                        </p>
+                      </div>
+                    </details>
+
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
+                      {scene.pov && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">👤 {scene.pov}</span>}
+                      {scene.setting && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">📍 {scene.setting}</span>}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center text-[10px] text-stone-400 italic border-2 border-dashed border-stone-200 rounded-xl">
+                  Sleep scènes hierheen
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
+    {/* MODAL VOOR SCHRIJFSTIJL INSTELLINGEN */}
+{isSettingsOpen && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-stone-100 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-300 animate-in fade-in zoom-in duration-200">
+      
+      {/* Header */}
+      <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-white">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-stone-900 flex items-center gap-2">
+            <Settings size={20} className="text-stone-400" />
+            Manuscript Schrijfstijl
+          </h2>
+          <p className="text-xs text-stone-500 mt-1">
+            Project: <span className="font-bold text-stone-700">{selectedProject?.title || "Laden..."}</span>
+          </p>
+        </div>
+        <button 
+          onClick={() => setIsSettingsOpen(false)} 
+          className="p-2 hover:bg-stone-100 rounded-full transition-colors text-stone-400"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+          <h4 className="text-[11px] font-bold text-amber-900 uppercase tracking-widest mb-1">Instructie voor de AI</h4>
+          <p className="text-[11px] text-amber-800 leading-relaxed">
+            Plak hier de specifieke <strong>STAP 1: ANALYSE</strong> en <strong>STAP 2: RICHTLIJNEN</strong>. 
+            Deze tekst fungeert als het 'DNA' van je manuscript en wordt bij elke proza-generatie meegestuurd naar Gemini.
+          </p>
+        </div>
+        
+        <div className="relative">
+          <textarea
+            value={writingStyle}
+            onChange={(e) => setWritingStyle(e.target.value)}
+            className="w-full h-[50vh] p-6 bg-white border border-stone-300 rounded-2xl font-mono text-xs leading-relaxed focus:ring-2 focus:ring-orange-800 focus:border-transparent outline-none shadow-inner resize-none"
+            placeholder="Bijv: ### STAP 1: ANALYSE (Verplicht)..."
+          />
+          <div className="absolute bottom-4 right-6 text-[10px] text-stone-400 font-mono">
+            {writingStyle.length} karakters
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="p-6 bg-stone-50 border-t border-stone-200 flex justify-end gap-3">
+        <button 
+          onClick={() => setIsSettingsOpen(false)}
+          className="px-6 py-2.5 rounded-full font-bold text-xs text-stone-500 hover:bg-stone-200 transition-all"
+        >
+          Annuleren
+        </button>
+        <button 
+          onClick={saveWritingStyle}
+          disabled={isSaving}
+          className="bg-orange-800 text-white px-8 py-2.5 rounded-full font-bold text-xs shadow-lg hover:bg-orange-900 transition-all flex items-center gap-2"
+        >
+          {isSaving ? 'Bezig met opslaan...' : 'Stijl Vastleggen'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+  </div>
+);
+} // Deze sluit de export default function ArchitectuurPage

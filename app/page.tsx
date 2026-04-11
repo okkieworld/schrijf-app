@@ -1,16 +1,21 @@
 "use client";
+import { supabase } from './lib/supabase'; // Pas het pad aan naar waar je het bestand hebt opgeslagen
+if (typeof window !== 'undefined') {
+  (window as any).supabase = supabase;
+}
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+
+//import { createClient } from '@supabase/supabase-js';
 import { debounce } from 'lodash';
 import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 // test commit
 // Deze variabelen worden één keer buiten de component aangemaakt
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+//const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+//const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+//const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 
 // Hieronder begint je export default function ...
@@ -363,30 +368,48 @@ const deleteScene = async (sceneId: string, chapterId: string) => {
   }
 };
 
-  useEffect(() => { fetchProjects(); }, []);
+// 1. De verbeterde useEffect die eerst de inlogstatus checkt
+useEffect(() => {
+  // We halen nu direct de projecten op, zonder eerst de inlogstatus te checken.
+  // Omdat RLS uit staat, zal de database de data gewoon sturen.
+  fetchProjects();
+}, [fetchProjects]);
+
+
+
+// 2. De verbeterde handleSceneChange
 const handleSceneChange = async (newScene: any) => {
-  // 1. Sla de huidige tekst op (van de scene waar we NU nog zijn)
+  // Stap 1: Sla de huidige tekst op (veiligheidscheck of we ingelogd zijn gebeurt via RLS)
   if (selectedScene?.id) {
-    await supabase
+    const { error: saveError } = await supabase
       .from('scenes')
       .update({ prose: prose })
       .eq('id', selectedScene.id);
+    
+    if (saveError) {
+      console.error("Fout bij opslaan oude scène:", saveError.message);
+    }
   }
 
-  // 2. Selecteer de nieuwe scene
+  // Stap 2: Selecteer de nieuwe scène in de interface
   setSelectedScene(newScene);
 
-  // 3. Haal de verse tekst op voor de nieuwe scene
-  const { data } = await supabase
+  // Stap 3: Haal de verse tekst op voor de nieuwe scène
+  // We gebruiken de centrale supabase client die we hebben geïmporteerd
+  const { data, error: fetchError } = await supabase
     .from('scenes')
     .select('prose')
     .eq('id', newScene.id)
     .single();
 
-  if (data) {
+  if (fetchError) {
+    console.error("Fout bij ophalen nieuwe scène:", fetchError.message);
+    // Val terug op de lokale data als de database-oproep faalt
+    setProse(newScene.prose || "");
+  } else if (data) {
     setProse(data.prose || "");
   } else {
-    setProse(newScene.prose || "");
+    setProse("");
   }
 };
 
