@@ -1,8 +1,8 @@
-// lib/supabase.ts
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Hier maken we de "single instance" aan
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Deze 'createBrowserClient' is slimmer: hij onthoudt dat hij in de browser zit
+// en voorkomt die "Multiple GoTrueClient" waarschuwingen.
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
