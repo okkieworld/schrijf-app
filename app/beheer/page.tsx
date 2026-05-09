@@ -43,39 +43,23 @@ export default function BeheerPage() {
     init();
   }, []);
 
-const fetchData = async () => {
-  // 1. Haal het actieve project op
-  const { data: proj } = await supabase.from('projects').select('*').limit(1).single();
-  if (!proj) return;
-  setSelectedProject(proj);
-
-  // 2. Haal de hoofdstukken van dit project op
-  const { data: chapters } = await supabase
-    .from('chapters')
-    .select('id')
-    .eq('project_id', proj.id);
-
-  if (!chapters || chapters.length === 0) return;
-  const chapterIds = chapters.map(c => c.id);
-
-  // 3. Haal de scènes op
-  const { data: scns } = await supabase
+const fetchData = async (projectId: string) => {
+  // 1. Haal de scènes op voor dit project
+  const { data: sceneData } = await supabase
     .from('scenes')
     .select('*')
-    .in('chapter_id', chapterIds) 
+    .eq('project_id', projectId)
     .order('order_index', { ascending: true });
+  
+  setScenes(sceneData || []);
 
-  // 4. Haal ALLE karakters van dit project op (voor de POV namen)
-  const { data: chars } = await supabase
-    .from('characters')
-    .select('id, name') // We weten nu zeker dat 'id' en 'name' bestaan
-    .eq('project_id', proj.id);
-
-  // 5. Locaties ophalen
-  const { data: locs } = await supabase
-    .from('locations')
+  // 2. Haal de codex (personages/locaties) op voor dit project
+  const { data: codexData } = await supabase
+    .from('codex')
     .select('*')
-    .eq('project_id', proj.id);
+    .eq('project_id', projectId);
+
+  setCodex(codexData || []);
 
   // 6. DE KOPPELING: Hier voegen we de 'pov_name' toe
   const scenesWithPov = (scns || []).map(scene => {
