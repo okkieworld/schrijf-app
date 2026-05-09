@@ -81,7 +81,7 @@ const fetchData = async (projectId: string) => {
   setCodex(codexData || []);
 
   // 6. DE KOPPELING: Hier voegen we de 'pov_name' toe
-  const scenesWithPov = (scns || []).map(scene => {
+  const scenesWithPov = (sceneData || []).map(scene => {
     // We vergelijken de ID's als strings voor de zekerheid
     const povCharacter = chars?.find(c => String(c.id) === String(scene.pov_id));
     
