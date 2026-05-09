@@ -25,6 +25,8 @@ const supabase = createClient(
 export default function BeheerPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [scenes, setScenes] = useState<any[]>([]);
+const [codex, setCodex] = useState<any[]>([]);
   const [data, setData] = useState<any>({ characters: [], locations: [], items: [] });
   const [activeCategory, setActiveCategory] = useState('characters');
   const [selectedId, setSelectedId] = useState(null);
