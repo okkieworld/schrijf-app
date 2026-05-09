@@ -129,12 +129,16 @@ if (!error && data) {
 };
 
 const fetchProjects = async () => {
-    const { data } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setProjects(data || []);
-  };
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  console.log("RSL TEST 1 - Projecten vanuit DB:", data);
+  if (error) console.log("RSL TEST 1 - Database Error:", error);
+
+  setProjects(data || []);
+};
 
 const saveProse = useMemo(
   () =>
