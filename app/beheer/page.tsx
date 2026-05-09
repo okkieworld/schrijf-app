@@ -23,7 +23,8 @@ const supabase = createClient(
 );
 
 export default function BeheerPage() {
-  const [projectId, setProjectId] = useState(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [data, setData] = useState<any>({ characters: [], locations: [], items: [] });
   const [activeCategory, setActiveCategory] = useState('characters');
   const [selectedId, setSelectedId] = useState(null);
@@ -50,7 +51,7 @@ const init = async () => {
         
         // 2. Selecteer het bovenste (meest recente) project
         const firstProject = projs[0];
-        setSelectedProject(firstProject);
+        setSelectedProject(firstProject.id);
         
         // 3. Geef het startsein aan fetchData om de scènes van dit project te laden
         await fetchData(firstProject.id);
