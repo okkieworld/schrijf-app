@@ -201,7 +201,7 @@ const fieldMapping: { [key: string]: string } = {
     const { data: newItem, error } = await supabase.from(activeCategory).insert([{ project_id: projectId, name }]).select().single();
     if (!error) {
       if (projectId) {
-  await fetchData(projectId);
+    await fetchData(projectId);
 }
       setSelectedId(newItem.id);
       setActiveTab('basis');
@@ -211,7 +211,9 @@ const fieldMapping: { [key: string]: string } = {
   const handleDelete = async () => {
     if (!confirm('Weet je zeker dat je dit wilt verwijderen?')) return;
     await supabase.from(activeCategory).delete().eq('id', selectedId);
-    await fetchData(projectId);
+    if (projectId) {
+  await fetchData(projectId);
+}
     setSelectedId(null);
   };
 
