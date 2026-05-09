@@ -377,7 +377,7 @@ useEffect(() => {
   // We halen nu direct de projecten op, zonder eerst de inlogstatus te checken.
   // Omdat RLS uit staat, zal de database de data gewoon sturen.
   fetchProjects();
-}, [fetchProjects]);
+}, []);
 
 
 
