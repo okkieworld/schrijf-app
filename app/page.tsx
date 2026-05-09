@@ -128,7 +128,7 @@ if (!error && data) {
   );
 };
 
-const fetchProjects = async () => {
+const fetchProjects = useCallback(async () => {
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -138,7 +138,7 @@ const fetchProjects = async () => {
   if (error) console.log("RSL TEST 1 - Database Error:", error);
 
   setProjects(data || []);
-};
+}, []); // De lege [] zorgt dat deze functie constant blijft
 
 const saveProse = useMemo(
   () =>
