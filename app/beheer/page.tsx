@@ -30,6 +30,7 @@ const [codex, setCodex] = useState<any[]>([]);
   const [data, setData] = useState<any>({ characters: [], locations: [], items: [] });
   const [activeCategory, setActiveCategory] = useState('characters');
   const [selectedId, setSelectedId] = useState(null);
+  const [locations, setLocations] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('basis');
   const [isSaving, setIsSaving] = useState(false);
   const [aiInput, setAiInput] = useState(""); 
@@ -93,7 +94,8 @@ const fetchData = async (projectId: string) => {
   });
 
   setScenes(scenesWithPov);
-  setLocations(locs || []);
+  const locs = (codexData || []).filter(item => item.type === 'location');
+setLocations(locs);
 };
 
   const activeItem = data[activeCategory]?.find((item: any) => item.id === selectedId);
