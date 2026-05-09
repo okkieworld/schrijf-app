@@ -33,11 +33,27 @@ export default function BeheerPage() {
   const [showAiTool, setShowAiTool] = useState(false);
 
   useEffect(() => {
-    const init = async () => {
-      const { data: projs } = await supabase.from('projects').select('id').limit(1);
-      if (projs?.[0]) {
-        setProjectId(projs[0].id);
-        fetchData(projs[0].id);
+const init = async () => {
+      // 1. Haal alle projecten op uit de database
+      const { data: projs, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Fout bij laden projecten:", error);
+        return;
+      }
+
+      if (projs && projs.length > 0) {
+        setProjects(projs);
+        
+        // 2. Selecteer het bovenste (meest recente) project
+        const firstProject = projs[0];
+        setSelectedProject(firstProject);
+        
+        // 3. Geef het startsein aan fetchData om de scènes van dit project te laden
+        await fetchData(firstProject.id);
       }
     };
     init();
