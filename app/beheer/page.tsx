@@ -200,7 +200,9 @@ const fieldMapping: { [key: string]: string } = {
     const name = `Nieuw(e) ${activeCategory === 'characters' ? 'Karakter' : activeCategory === 'locations' ? 'Locatie' : 'Object'}`;
     const { data: newItem, error } = await supabase.from(activeCategory).insert([{ project_id: projectId, name }]).select().single();
     if (!error) {
-      await fetchData(projectId);
+      if (projectId) {
+  await fetchData(projectId);
+}
       setSelectedId(newItem.id);
       setActiveTab('basis');
     }
