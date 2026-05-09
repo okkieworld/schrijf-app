@@ -5,17 +5,9 @@ if (typeof window !== 'undefined') {
 }
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
-//import { createClient } from '@supabase/supabase-js';
 import { debounce } from 'lodash';
 import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-
-// test commit
-// Deze variabelen worden één keer buiten de component aangemaakt
-//const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-//const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-//const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 
 // Hieronder begint je export default function ...
@@ -25,7 +17,7 @@ export default function WritingApp() {
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [chapters, setChapters] = useState<any[]>([]);
   const [scenes, setScenes] = useState<Record<string, any>>({});
-const [selectedScene, setSelectedScene] = useState<any>(null);
+  const [selectedScene, setSelectedScene] = useState<any>(null);
   const [prose, setProse] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [totalWords, setTotalWords] = useState(0);
