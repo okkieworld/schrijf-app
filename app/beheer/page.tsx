@@ -51,7 +51,7 @@ const init = async () => {
         
         // 2. Selecteer het bovenste (meest recente) project
         const firstProject = projs[0];
-        setSelectedProject(firstProject.id);
+        setProjectId(firstProject.id);
         
         // 3. Geef het startsein aan fetchData om de scènes van dit project te laden
         await fetchData(firstProject.id);
