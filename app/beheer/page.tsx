@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
+// 1. IMPORT DE CENTRALE CLIENT (Verwijder de oude createClient import)
+import { supabase } from '@/lib/supabase'; 
 import { UserPlus, MapPin, Sword, Trash2, Layout, User, Fingerprint, Brain, Heart, Info, Save, Share2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -8,7 +9,6 @@ import dynamic from 'next/dynamic';
 const MermaidDiagram = dynamic(
   async () => {
     const mod = await import('../components/MermaidDiagram');
-    // We controleren handmatig of het een default export is
     return mod.default || mod;
   },
   { 
@@ -17,16 +17,13 @@ const MermaidDiagram = dynamic(
   }
 );
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+
 
 export default function BeheerPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [scenes, setScenes] = useState<any[]>([]);
-const [codex, setCodex] = useState<any[]>([]);
+  const [codex, setCodex] = useState<any[]>([]);
   const [data, setData] = useState<any>({ characters: [], locations: [], items: [] });
   const [activeCategory, setActiveCategory] = useState('characters');
   const [selectedId, setSelectedId] = useState(null);
@@ -36,9 +33,8 @@ const [codex, setCodex] = useState<any[]>([]);
   const [aiInput, setAiInput] = useState(""); 
   const [showAiTool, setShowAiTool] = useState(false);
 
-  useEffect(() => {
-const init = async () => {
-      // 1. Haal alle projecten op uit de database
+useEffect(() => {
+    const init = async () => {
       const { data: projs, error } = await supabase
         .from('projects')
         .select('*')
@@ -51,47 +47,50 @@ const init = async () => {
 
       if (projs && projs.length > 0) {
         setProjects(projs);
-        
-        // 2. Selecteer het bovenste (meest recente) project
         const firstProject = projs[0];
         setProjectId(firstProject.id);
-        
-        // 3. Geef het startsein aan fetchData om de scènes van dit project te laden
-        await fetchData(firstProject.id);
+        fetchData(firstProject.id);
       }
     };
     init();
-  }, []);
+  }, [fetchData]);
 
-const fetchData = async (projectId: string) => {
-  // 1. Haal de scènes op voor dit project
-  const { data: sceneData } = await supabase
-    .from('scenes')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('order_index', { ascending: true });
-  
-  setScenes(sceneData || []);
-
-  // 2. Haal de codex (personages/locaties) op voor dit project
-  const { data: codexData } = await supabase
-    .from('codex')
-    .select('*')
-    .eq('project_id', projectId);
-
-  setCodex(codexData || []);
-
-  // 6. DE KOPPELING: Hier voegen we de 'pov_name' toe
-  const scenesWithPov = (sceneData || []).map(scene => {
-    // We vergelijken de ID's als strings voor de zekerheid
-    const povCharacter = (codexData || []).find(c => String(c.id) === String(scene.pov_id));
+const fetchData = useCallback(async (pId: string) => {
+    // Haal de scènes op
+    const { data: sceneData } = await supabase
+      .from('scenes')
+      .select('*')
+      .eq('project_id', pId)
+      .order('order_index', { ascending: true });
     
-    return {
-      ...scene,
-      // Als we een match vinden, pakken we 'name', anders null
-      pov_name: povCharacter ? povCharacter.name : null
-    };
-  });
+    // Haal de codex op
+    const { data: codexData } = await supabase
+      .from('codex')
+      .select('*')
+      .eq('project_id', pId);
+
+    const safeCodex = codexData || [];
+    setCodex(safeCodex);
+
+    // Koppel POV namen
+    const scenesWithPov = (sceneData || []).map(scene => {
+      const povCharacter = safeCodex.find(c => String(c.id) === String(scene.pov_id));
+      return {
+        ...scene,
+        pov_name: povCharacter ? povCharacter.name : null
+      };
+    });
+
+    setScenes(scenesWithPov);
+    setLocations(safeCodex.filter(item => item.type === 'location'));
+    
+    // Cruciaal: Update de 'data' state zodat de lijst aan de linkerkant gevuld wordt!
+    setData({
+      characters: safeCodex.filter(item => item.type === 'character'),
+      locations: safeCodex.filter(item => item.type === 'location'),
+      items: safeCodex.filter(item => item.type === 'item')
+    });
+  }, []);
 
   setScenes(scenesWithPov);
   const locs = (codexData || []).filter(item => item.type === 'location');
