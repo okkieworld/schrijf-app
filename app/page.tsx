@@ -54,10 +54,10 @@ const selectProject = async (project: any) => {
     const scenesMap: Record<string, any[]> = {};
     let totaalWoorden = 0;
 
-    fetchedChapters.forEach((ch) => {
+    fetchedChapters.forEach((ch: any) => {
       if (ch.scenes) {
         // Sorteer scenes op order_index
-        const sortedScenes = [...ch.scenes].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+        const sortedScenes = [...ch.scenes].sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
         scenesMap[ch.id] = sortedScenes;
 
         // Tel woorden
