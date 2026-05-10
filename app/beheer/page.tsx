@@ -35,39 +35,48 @@ export default function BeheerPage() {
 
 
 // 2. Data ophalen functie
-  const fetchData = useCallback(async (pId: string) => {
-    // Haal de scènes op
+const fetchData = useCallback(async (pId: string) => {
+    // 1. Haal de scènes op
     const { data: sceneData } = await supabase
       .from('scenes')
       .select('*')
       .eq('project_id', pId)
       .order('order_index', { ascending: true });
     
-    // Haal de codex op
-    const { data: codexData } = await supabase
-      .from('codex')
-      .select('*')
-      .eq('project_id', pId);
+    // 2. Haal data op uit de drie losse tabellen tegelijk
+    const [resChars, resLocs, resItems] = await Promise.all([
+      supabase.from('characters').select('*').eq('project_id', pId),
+      supabase.from('locations').select('*').eq('project_id', pId),
+      supabase.from('items').select('*').eq('project_id', pId)
+    ]);
 
-    const safeCodex = codexData || [];
+    // 3. Voeg alles samen en geef ze een 'type' label zodat de rest van de app ze herkent
+    const allCharacters = (resChars.data || []).map((c: any) => ({ ...c, type: 'character' }));
+    const allLocations = (resLocs.data || []).map((l: any) => ({ ...l, type: 'location' }));
+    const allItems = (resItems.data || []).map((i: any) => ({ ...i, type: 'item' }));
+
+    const safeCodex = [...allCharacters, ...allLocations, ...allItems];
     setCodex(safeCodex);
 
-    // Koppel POV namen
+    // 4. Koppel POV namen (zoekt zowel op ID als op naam voor de zekerheid)
     const scenesWithPov = (sceneData || []).map((scene: any) => {
-      const povCharacter = safeCodex.find((c: any) => String(c.id) === String(scene.pov_id));
+      const povCharacter = allCharacters.find((c: any) => 
+        String(c.id) === String(scene.pov_id) || c.name === scene.pov
+      );
       return {
         ...scene,
-        pov_name: povCharacter ? povCharacter.name : null
+        pov_name: povCharacter ? povCharacter.name : (scene.pov || null)
       };
     });
 
     setScenes(scenesWithPov);
-    setLocations(safeCodex.filter((item: any) => item.type === 'location'));
+    setLocations(allLocations);
     
+    // 5. Update de 'data' state voor de zijbalk filters
     setData({
-      characters: safeCodex.filter((item: any) => item.type === 'character'),
-      locations: safeCodex.filter((item: any) => item.type === 'location'),
-      items: safeCodex.filter((item: any) => item.type === 'item')
+      characters: allCharacters,
+      locations: allLocations,
+      items: allItems
     });
   }, []); // <--- DEZE REGEL EN HAAKJES MOETEN ERBIJ!
   // 1. Initialisatie effect
