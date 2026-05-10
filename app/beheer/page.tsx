@@ -33,28 +33,7 @@ export default function BeheerPage() {
   const [aiInput, setAiInput] = useState(""); 
   const [showAiTool, setShowAiTool] = useState(false);
 
-// 1. Initialisatie effect
-  useEffect(() => {
-    const init = async () => {
-      const { data: projs, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error("Fout bij laden projecten:", error);
-        return;
-      }
-
-      if (projs && projs.length > 0) {
-        setProjects(projs);
-        const firstProject = projs[0];
-        setProjectId(firstProject.id);
-        fetchData(firstProject.id);
-      }
-    };
-    init();
-  }, [fetchData]);
 
   // 2. Data ophalen functie
   const fetchData = useCallback(async (pId: string) => {
@@ -94,6 +73,28 @@ export default function BeheerPage() {
     });
   }, []);
 
+  // 1. Initialisatie effect
+  useEffect(() => {
+    const init = async () => {
+      const { data: projs, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Fout bij laden projecten:", error);
+        return;
+      }
+
+      if (projs && projs.length > 0) {
+        setProjects(projs);
+        const firstProject = projs[0];
+        setProjectId(firstProject.id);
+        fetchData(firstProject.id);
+      }
+    };
+    init();
+  }, [fetchData]);
   // HIERONDER KUNNEN EVENTUELE ANDERE FUNCTIES STAAN (zoals saveToDatabase)
   // ZORG DAT ER GEEN LOSSE REGELS CODE HIER STAAN VOORDAT DE RETURN BEGINT.
   const activeItem = data[activeCategory]?.find((item: any) => item.id === selectedId);
