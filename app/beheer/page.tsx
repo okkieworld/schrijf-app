@@ -53,9 +53,9 @@ export default function BeheerPage() {
     const safeCodex = codexData || [];
     setCodex(safeCodex);
 
-    // Koppel POV namen
-    const scenesWithPov = (sceneData || []).map(scene => {
-      const povCharacter = safeCodex.find(c => String(c.id) === String(scene.pov_id));
+// Koppel POV namen
+    const scenesWithPov = (sceneData || []).map((scene: any) => {
+      const povCharacter = safeCodex.find((c: any) => String(c.id) === String(scene.pov_id));
       return {
         ...scene,
         pov_name: povCharacter ? povCharacter.name : null
