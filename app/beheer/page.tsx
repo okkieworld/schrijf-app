@@ -33,7 +33,8 @@ export default function BeheerPage() {
   const [aiInput, setAiInput] = useState(""); 
   const [showAiTool, setShowAiTool] = useState(false);
 
-useEffect(() => {
+// 1. Initialisatie effect
+  useEffect(() => {
     const init = async () => {
       const { data: projs, error } = await supabase
         .from('projects')
@@ -55,7 +56,8 @@ useEffect(() => {
     init();
   }, [fetchData]);
 
-const fetchData = useCallback(async (pId: string) => {
+  // 2. Data ophalen functie
+  const fetchData = useCallback(async (pId: string) => {
     // Haal de scènes op
     const { data: sceneData } = await supabase
       .from('scenes')
@@ -84,7 +86,7 @@ const fetchData = useCallback(async (pId: string) => {
     setScenes(scenesWithPov);
     setLocations(safeCodex.filter(item => item.type === 'location'));
     
-    // Cruciaal: Update de 'data' state zodat de lijst aan de linkerkant gevuld wordt!
+    // Update de 'data' state voor de zijbalk
     setData({
       characters: safeCodex.filter(item => item.type === 'character'),
       locations: safeCodex.filter(item => item.type === 'location'),
@@ -92,11 +94,8 @@ const fetchData = useCallback(async (pId: string) => {
     });
   }, []);
 
-  setScenes(scenesWithPov);
-  const locs = (codexData || []).filter(item => item.type === 'location');
-setLocations(locs);
-};
-
+  // HIERONDER KUNNEN EVENTUELE ANDERE FUNCTIES STAAN (zoals saveToDatabase)
+  // ZORG DAT ER GEEN LOSSE REGELS CODE HIER STAAN VOORDAT DE RETURN BEGINT.
   const activeItem = data[activeCategory]?.find((item: any) => item.id === selectedId);
 
   // --- DEBOUNCED SAVE LOGICA ---
