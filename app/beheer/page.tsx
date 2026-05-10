@@ -63,15 +63,13 @@ export default function BeheerPage() {
     });
 
     setScenes(scenesWithPov);
-    setLocations(safeCodex.filter(item => item.type === 'location'));
+setLocations(safeCodex.filter((item: any) => item.type === 'location'));
     
-    // Update de 'data' state voor de zijbalk
     setData({
-      characters: safeCodex.filter(item => item.type === 'character'),
-      locations: safeCodex.filter(item => item.type === 'location'),
-      items: safeCodex.filter(item => item.type === 'item')
+      characters: safeCodex.filter((item: any) => item.type === 'character'),
+      locations: safeCodex.filter((item: any) => item.type === 'location'),
+      items: safeCodex.filter((item: any) => item.type === 'item')
     });
-  }, []);
 
   // 1. Initialisatie effect
   useEffect(() => {
