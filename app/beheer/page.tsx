@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 // 1. IMPORT DE CENTRALE CLIENT (Verwijder de oude createClient import)
-import { supabase } from '@/lib/supabase'; 
+import { supabase } from '../lib/supabase';
 import { UserPlus, MapPin, Sword, Trash2, Layout, User, Fingerprint, Brain, Heart, Info, Save, Share2, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
