@@ -34,8 +34,7 @@ export default function BeheerPage() {
   const [showAiTool, setShowAiTool] = useState(false);
 
 
-
-  // 2. Data ophalen functie
+// 2. Data ophalen functie
   const fetchData = useCallback(async (pId: string) => {
     // Haal de scènes op
     const { data: sceneData } = await supabase
@@ -53,7 +52,7 @@ export default function BeheerPage() {
     const safeCodex = codexData || [];
     setCodex(safeCodex);
 
-// Koppel POV namen
+    // Koppel POV namen
     const scenesWithPov = (sceneData || []).map((scene: any) => {
       const povCharacter = safeCodex.find((c: any) => String(c.id) === String(scene.pov_id));
       return {
@@ -63,14 +62,14 @@ export default function BeheerPage() {
     });
 
     setScenes(scenesWithPov);
-setLocations(safeCodex.filter((item: any) => item.type === 'location'));
+    setLocations(safeCodex.filter((item: any) => item.type === 'location'));
     
     setData({
       characters: safeCodex.filter((item: any) => item.type === 'character'),
       locations: safeCodex.filter((item: any) => item.type === 'location'),
       items: safeCodex.filter((item: any) => item.type === 'item')
     });
-
+  }, []); // <--- DEZE REGEL EN HAAKJES MOETEN ERBIJ!
   // 1. Initialisatie effect
   useEffect(() => {
     const init = async () => {
