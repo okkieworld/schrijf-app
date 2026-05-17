@@ -121,7 +121,7 @@ const [projects, setProjects] = useState<any[]>([]);
     return (
       <div className="h-screen bg-[#F7F9FA] flex flex-col items-center justify-center font-sans">
         <Loader2 className="text-[#3D5A6C] animate-spin mb-4" size={32} />
-        <div className="text-[#3D5A6C] font-["Montserrat"] text-xs font-semibold tracking-widest uppercase">STELR WORDT GELADEN...</div>
+<div className="text-[#3D5A6C] font-['Montserrat'] text-xs font-semibold tracking-widest uppercase">STELR WORDT GELADEN...</div>
       </div>
     );
   }
@@ -136,8 +136,8 @@ const [projects, setProjects] = useState<any[]>([]);
             <Feather className="text-[#F7F9FA]" size={20} />
           </div>
           <div>
-            <span className="text-2xl font-["Montserrat"] tracking-wider font-bold uppercase text-[#3D5A6C] block leading-none">STELR</span>
-            <span className="text-[10px] tracking-widest text-[#9FA084] font-medium uppercase font-["Montserrat"]">Bouw je verhaal</span>
+<span className="text-2xl font-['Montserrat'] tracking-wider font-bold uppercase text-[#3D5A6C] block leading-none">STELR</span>
+<span className="text-[10px] tracking-widest text-[#9FA084] font-medium uppercase font-['Montserrat']">Bouw je verhaal</span>
           </div>
         </div>
 
@@ -147,7 +147,7 @@ const [projects, setProjects] = useState<any[]>([]);
             <div className="flex items-start space-x-4">
               <Clock className="text-[#3D5A6C] shrink-0 mt-0.5" size={20} />
               <div>
-                <h2 className="text-[11px] font-["Montserrat"] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-1">Waar je gebleven bent</h2>
+<h2 className="text-[11px] font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-1">Waar je gebleven bent</h2>
                 <p className="text-sm text-[#2B3A42]">
                   Je werkte laatst aan <strong className="font-semibold">"{lastSession.sceneTitle}"</strong> in <em className="italic text-gray-500">{lastSession.projectTitle}</em>.
                 </p>
@@ -155,7 +155,7 @@ const [projects, setProjects] = useState<any[]>([]);
             </div>
             <button 
               onClick={() => onSelectScene(lastSession.projectId, lastSession.sceneId)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-["Montserrat"] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
             >
               <span>Hervatten</span>
               <ArrowRight size={14} />
