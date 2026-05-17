@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
-import { supabase } from './lib/supabase'; // Pas aan naar jouw eigen supabase-import
+import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation'; // <-- Voeg deze regel toe bovenin
 
 export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekker schoon!
