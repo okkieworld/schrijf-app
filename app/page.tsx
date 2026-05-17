@@ -431,7 +431,23 @@ const handleSceneChange = async (newScene: any) => {
   setSelectedScene(newScene);
 
   // ==========================================
-  // STAP 3: HAAL DIRECT DE VERSE TEKST OP (UX Prioriteit!)
+  // STAP 3: UPDATE LOCATIE BINNEN DIT SPECIFIEKE PROJECT
+  // ==========================================
+  // We gebruiken hier bewust GEEN await, zodat de schrijver direct door kan.
+  if (selectedProject?.id && newScene?.id) {
+    supabase
+      .from('projects')
+      .update({ last_active_scene_id: newScene.id })
+      .eq('id', selectedProject.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Fout bij bijwerken laatste scène van project:", error.message);
+        }
+      });
+  }
+
+  // ==========================================
+  // STAP 4: HAAL DIRECT DE VERSE TEKST OP (UX Prioriteit!)
   // ==========================================
   const { data, error: fetchError } = await supabase
     .from('scenes')
@@ -446,30 +462,6 @@ const handleSceneChange = async (newScene: any) => {
     setProse(data.prose || "");
   } else {
     setProse("");
-  }
-
-  // ==========================================
-  // STAP 4: UPDATE HET PROFIEL VOOR DE HUB (Nu veilig met await)
-  // ==========================================
-  // De nieuwe tekst staat al op het scherm, dus de auteur merkt niks van deze await!
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user && selectedProject?.id && newScene?.id) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          last_active_project_id: selectedProject.id,
-          last_active_scene_id: newScene.id
-        })
-        .eq('id', user.id);
-
-      if (profileError) {
-        console.error("Fout bij bijwerken profiel-locatie (RLS):", profileError.message);
-      }
-    }
-  } catch (err) {
-    console.error("Onverwachte fout bij profiel-update:", err);
   }
 };
 
