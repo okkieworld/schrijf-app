@@ -81,7 +81,7 @@ const [projects, setProjects] = useState<any[]>([]);
     }
   }
 
-  async function handleCreateProject(e) {
+ async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
