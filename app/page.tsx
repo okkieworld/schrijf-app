@@ -166,7 +166,10 @@ const fetchProjects = useCallback(async () => {
   if (error) console.log("RSL TEST 1 - Database Error:", error);
 
   setProjects(data || []);
-}, []); // De lege [] zorgt dat deze functie constant blijft
+  
+  // CRUCIALERENDE TOEVOEGING: We returnen de data zodat de useEffect hierboven er direct bij kan
+  return data;
+}, []);
 
 const saveProse = useMemo(
   () =>
@@ -402,9 +405,21 @@ const deleteScene = async (sceneId: string, chapterId: string) => {
 
 // 1. De verbeterde useEffect die eerst de inlogstatus checkt
 useEffect(() => {
-  // We halen nu direct de projecten op, zonder eerst de inlogstatus te checken.
-  // Omdat RLS uit staat, zal de database de data gewoon sturen.
-  fetchProjects();
+  const startup = async () => {
+    // 1. Haal eerst alle projecten op uit de database
+    const fetchedProjects = await fetchProjects();
+    
+    // 2. Als er projecten zijn, open dan direct het meest recente project
+    if (fetchedProjects && fetchedProjects.length > 0) {
+      const mostRecentProject = fetchedProjects[0];
+      
+      // We roepen selectProject aan. Omdat we die functie eerder hebben aangepast, 
+      // gaat die automatisch op zoek naar de 'last_active_scene_id' binnen dit project!
+      await selectProject(mostRecentProject);
+    }
+  };
+
+  startup();
 }, []);
 
 
