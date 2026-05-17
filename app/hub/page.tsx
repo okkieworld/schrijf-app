@@ -246,7 +246,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
             {projects.map((project) => (
               <div 
                 key={project.id}
-                onClick={() => onSelectProject(project)}
+                onClick={() => router.push(`/?project=${project.id}`)}
                 className="bg-white p-6 rounded-[4px] border border-gray-200/80 shadow-sm hover:border-[#9FA084] hover:shadow-md cursor-pointer transition-all flex flex-col justify-between h-52 group relative overflow-hidden"
               >
                 <div>
