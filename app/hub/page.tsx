@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
 import { supabase } from './lib/supabase'; // Pas aan naar jouw eigen supabase-import
