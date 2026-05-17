@@ -165,11 +165,11 @@ const [projects, setProjects] = useState<any[]>([]);
 
         {/* SECTIE HEADER */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-lg font-["Montserrat"] tracking-wider font-semibold uppercase text-[#3D5A6C]">Mijn Manuscripten</h1>
+          <h1 className="text-lg font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C]">Mijn Manuscripten</h1>
           {!isCreating && (
             <button 
               onClick={() => setIsCreating(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-["Montserrat"] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors shadow-sm"
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors shadow-sm"
             >
               <Plus size={14} />
               <span>Nieuw Manuscript</span>
@@ -180,13 +180,13 @@ const [projects, setProjects] = useState<any[]>([]);
         {/* NIEF MANUSCRIPT FORMULIER (Verschijnt in plaats van/naast de kaarten) */}
         {isCreating ? (
           <div className="bg-white p-8 rounded-[4px] border border-gray-200 shadow-sm max-w-2xl animate-fadeIn">
-            <h2 className="text-sm font-["Montserrat"] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-6 pb-2 border-b border-gray-100">
+            <h2 className="text-sm font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-6 pb-2 border-b border-gray-100">
               Nieuw Verhaal Starten
             </h2>
             
             <form onSubmit={handleCreateProject} className="space-y-5">
               <div>
-                <label className="block text-[11px] font-["Montserrat"] font-semibold uppercase text-gray-400 mb-1.5">Titel van het Boek *</label>
+                <label className="block text-[11px] font-['Montserrat'] font-semibold uppercase text-gray-400 mb-1.5">Titel van het Boek *</label>
                 <input 
                   autoFocus
                   required
@@ -199,7 +199,7 @@ const [projects, setProjects] = useState<any[]>([]);
               </div>
 
               <div>
-                <label className="block text-[11px] font-["Montserrat"] font-semibold uppercase text-gray-400 mb-1.5">Synopsis / Korte Samenvatting</label>
+                <label className="block text-[11px] font-['Montserrat'] font-semibold uppercase text-gray-400 mb-1.5">Synopsis / Korte Samenvatting</label>
                 <textarea 
                   rows={4}
                   placeholder="Waar gaat je verhaal in grote lijnen over? (Dit kun je later altijd aanpassen)"
@@ -210,7 +210,7 @@ const [projects, setProjects] = useState<any[]>([]);
               </div>
 
               <div>
-                <label className="block text-[11px] font-["Montserrat"] font-semibold uppercase text-gray-400 mb-1.5">Schrijfstijl (Preset)</label>
+                <label className="block text-[11px] font-['Montserrat'] font-semibold uppercase text-gray-400 mb-1.5">Schrijfstijl (Preset)</label>
                 <select 
                   value={formData.writing_style}
                   onChange={(e) => setFormData({...formData, writing_style: e.target.value})}
@@ -227,13 +227,13 @@ const [projects, setProjects] = useState<any[]>([]);
                 <button 
                   type="button" 
                   onClick={() => setIsCreating(false)} 
-                  className="px-4 py-2 text-xs font-["Montserrat"] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 transition-colors"
+                  className="px-4 py-2 text-xs font-['Montserrat'] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Annuleren
                 </button>
                 <button 
                   type="submit" 
-                  className="px-5 py-2 bg-[#9FA084] text-white font-["Montserrat"] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#9FA084]/90 transition-colors shadow-sm"
+                  className="px-5 py-2 bg-[#9FA084] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#9FA084]/90 transition-colors shadow-sm"
                 >
                   Manuscript Aanmaken
                 </button>
@@ -252,11 +252,11 @@ const [projects, setProjects] = useState<any[]>([]);
                 <div>
                   <div className="flex justify-between items-start mb-4">
                     <Book className="text-[#3D5A6C] group-hover:text-[#9FA084] transition-colors" size={24} />
-                    <span className="text-[9px] font-["Montserrat"] font-semibold uppercase bg-gray-100 px-2 py-0.5 rounded text-gray-500">
+                    <span className="text-[9px] font-['Montserrat'] font-semibold uppercase bg-gray-100 px-2 py-0.5 rounded text-gray-500">
                       {project.writing_style || 'Standaard'}
                     </span>
                   </div>
-                  <h2 className="font-["Montserrat"] font-semibold text-sm text-[#2B3A42] line-clamp-2 uppercase tracking-wide group-hover:text-[#3D5A6C] transition-colors">
+                  <h2 className="font-['Montserrat'] font-semibold text-sm text-[#2B3A42] line-clamp-2 uppercase tracking-wide group-hover:text-[#3D5A6C] transition-colors">
                     {project.title}
                   </h2>
                   <p className="text-xs text-gray-400 mt-2 line-clamp-3 font-sans leading-relaxed">
@@ -278,7 +278,7 @@ const [projects, setProjects] = useState<any[]>([]);
                 <p className="text-gray-400 text-sm mb-4 font-sans">Je hebt momenteel nog geen actieve manuscripten klaarstaan.</p>
                 <button 
                   onClick={() => setIsCreating(true)} 
-                  className="px-5 py-2.5 bg-[#3D5A6C] text-white font-["Montserrat"] text-xs font-semibold uppercase tracking-wider rounded-[4px] shadow-sm"
+                  className="px-5 py-2.5 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] shadow-sm"
                 >
                   Start je eerste boek
                 </button>
