@@ -439,7 +439,7 @@ const handleSceneChange = async (newScene: any) => {
       .from('projects')
       .update({ last_active_scene_id: newScene.id })
       .eq('id', selectedProject.id)
-.then((res) => {
+.then((res: any) => {
         if (res.error) {
           console.error("Fout bij bijwerken laatste scène van project:", res.error.message);
         }
