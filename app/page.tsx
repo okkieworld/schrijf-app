@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { debounce } from 'lodash';
 import { Book, ChevronDown, Layout, Info, PenTool, Users, MapPin, Archive, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import StelrHub from './StelrHub';
 
 
 // Hieronder begint je export default function ...
@@ -26,7 +27,42 @@ export default function WritingApp() {
   const [codexData, setCodexData] = useState<any>({ characters: [], locations: [], items: [] });
   const [showLegend, setShowLegend] = useState(false);
 
+// Functie die wordt aangeroepen vanuit de "Hervatten" banner op de Hub
+const selectSpecificScene = async (projectId: string, sceneId: string) => {
+  // 1. Haal eerst de basisgegevens van het project op om de state te vullen
+  const { data: project, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', projectId)
+    .single();
 
+  if (error || !project) {
+    console.error("Kon historisch project niet laden:", error);
+    return;
+  }
+
+  // 2. Laad alle hoofdstukken en codex via je bestaande functie
+  await selectProject(project);
+
+  // 3. Haal de specifieke scène op om deze direct in de editor te openen
+  const { data: sceneData } = await supabase
+    .from('scenes')
+    .select('*')
+    .eq('id', sceneId)
+    .single();
+
+  if (sceneData) {
+    setSelectedScene(sceneData);
+    setProse(sceneData.prose || ""); // Zorg dat de tekst direct in het tekstvak staat
+    
+    // Zorg er ook voor dat het bijbehorende hoofdstuk visueel openklapt in de zijbalk
+    if (sceneData.chapter_id) {
+      setExpandedChapters((prev) => 
+        prev.includes(sceneData.chapter_id) ? prev : [...prev, sceneData.chapter_id]
+      );
+    }
+  }
+};
 
 
 // Zorg dat 'async' hier staat voor (project: any)
@@ -373,9 +409,11 @@ useEffect(() => {
 
 
 
-// 2. De verbeterde handleSceneChange
+// 2. De verbeterde handleSceneChange (Volledig veilig met await)
 const handleSceneChange = async (newScene: any) => {
-  // Stap 1: Sla de huidige tekst op (veiligheidscheck of we ingelogd zijn gebeurt via RLS)
+  // ==========================================
+  // STAP 1: SLA DE OUDE TEKST OP
+  // ==========================================
   if (selectedScene?.id) {
     const { error: saveError } = await supabase
       .from('scenes')
@@ -387,11 +425,14 @@ const handleSceneChange = async (newScene: any) => {
     }
   }
 
-  // Stap 2: Selecteer de nieuwe scène in de interface
+  // ==========================================
+  // STAP 2: SELECTEER DE NIEUWE SCÈNE IN DE INTERFACE
+  // ==========================================
   setSelectedScene(newScene);
 
-  // Stap 3: Haal de verse tekst op voor de nieuwe scène
-  // We gebruiken de centrale supabase client die we hebben geïmporteerd
+  // ==========================================
+  // STAP 3: HAAL DIRECT DE VERSE TEKST OP (UX Prioriteit!)
+  // ==========================================
   const { data, error: fetchError } = await supabase
     .from('scenes')
     .select('prose')
@@ -400,12 +441,35 @@ const handleSceneChange = async (newScene: any) => {
 
   if (fetchError) {
     console.error("Fout bij ophalen nieuwe scène:", fetchError.message);
-    // Val terug op de lokale data als de database-oproep faalt
     setProse(newScene.prose || "");
   } else if (data) {
     setProse(data.prose || "");
   } else {
     setProse("");
+  }
+
+  // ==========================================
+  // STAP 4: UPDATE HET PROFIEL VOOR DE HUB (Nu veilig met await)
+  // ==========================================
+  // De nieuwe tekst staat al op het scherm, dus de auteur merkt niks van deze await!
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user && selectedProject?.id && newScene?.id) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          last_active_project_id: selectedProject.id,
+          last_active_scene_id: newScene.id
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error("Fout bij bijwerken profiel-locatie (RLS):", profileError.message);
+      }
+    }
+  } catch (err) {
+    console.error("Onverwachte fout bij profiel-update:", err);
   }
 };
 
