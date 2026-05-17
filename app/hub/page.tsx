@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
 import { supabase } from './lib/supabase'; // Pas aan naar jouw eigen supabase-import
+import { useRouter } from 'next/navigation'; // <-- Voeg deze regel toe bovenin
 
-export default function StelrHub({ 
-  onSelectProject, 
-  onSelectScene 
-}: { 
-  onSelectProject: (project: any) => void; 
-  onSelectScene: (projectId: string, sceneId: string) => void; 
-}) {
-const [projects, setProjects] = useState<any[]>([]);
+export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekker schoon!
+  const router = useRouter(); // <-- Activeert de navigatie
+  
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastSession, setLastSession] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -24,6 +21,7 @@ const [projects, setProjects] = useState<any[]>([]);
   useEffect(() => {
     fetchHubData();
   }, []);
+
 
   async function fetchHubData() {
     try {
@@ -110,8 +108,8 @@ const [projects, setProjects] = useState<any[]>([]);
       setFormData({ title: '', synopsis: '', writing_style: 'Standaard' });
       setIsCreating(false);
       
-      // Stuur de gebruiker direct door naar het zojuist aangemaakte project
-      onSelectProject(data);
+// Stuur de gebruiker direct door naar de schrijfomgeving met het juiste project-id in de URL
+      router.push(`/?project=${data.id}`);
 } catch (error: any) {
   alert('Fout bij aanmaken manuscript: ' + (error?.message || error));
 }
@@ -153,13 +151,13 @@ const [projects, setProjects] = useState<any[]>([]);
                 </p>
               </div>
             </div>
-            <button 
-              onClick={() => onSelectScene(lastSession.projectId, lastSession.sceneId)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
-            >
-              <span>Hervatten</span>
-              <ArrowRight size={14} />
-            </button>
+<button 
+  onClick={() => router.push(`/?project=${project.id}`)}
+  className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
+>
+  <span>Hervatten</span>
+  <ArrowRight size={14} />
+</button>
           </div>
         )}
 
