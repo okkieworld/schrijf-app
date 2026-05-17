@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Pas aan naar jouw eigen supabase-import
+import { supabase } from './lib/supabase'; // Pas aan naar jouw eigen supabase-import
 
 export default function StelrHub({ onSelectProject, onSelectScene }) {
   const [projects, setProjects] = useState([]);
