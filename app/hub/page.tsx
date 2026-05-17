@@ -154,7 +154,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
               </div>
             </div>
 <button 
-  onClick={() => router.push(`/?project=${project.id}`)}
+  onClick={() => router.push(`/?project=${lastSession.projectId}&scene=${lastSession.sceneId}`)}
   className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
 >
   <span>Hervatten</span>
