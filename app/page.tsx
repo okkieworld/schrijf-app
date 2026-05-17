@@ -131,7 +131,7 @@ const selectProject = async (project: any) => {
     if (project.last_active_scene_id) {
       console.log("Sessie herstellen: Op zoek naar scène-ID:", project.last_active_scene_id);
       
-      let foundScene = null;
+let foundScene: any = null;
 
       // We zoeken door de lokaal opgebouwde scenesMap heen
       Object.values(scenesMap).forEach((sceneArray: any) => {
