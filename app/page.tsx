@@ -109,17 +109,15 @@ const selectProject = async (project: any) => {
     setTotalWords(totaalWoorden);
 
     // 4. Haal de Codex data op
-const [charRes, locRes, itemRes] = await Promise.all([
-  supabase.from('characters').select('*').eq('project_id', project.id).order('name'),
-  // We voegen hier .order('is_major_location', { ascending: false }) toe 
-  // zodat Hoofdlocaties altijd bovenaan de data-set staan.
-  supabase.from('locations')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('is_major_location', { ascending: false })
-    .order('name'),
-  supabase.from('items').select('*').eq('project_id', project.id).order('name')
-]);
+    const [charRes, locRes, itemRes] = await Promise.all([
+      supabase.from('characters').select('*').eq('project_id', project.id).order('name'),
+      supabase.from('locations')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('is_major_location', { ascending: false })
+        .order('name'),
+      supabase.from('items').select('*').eq('project_id', project.id).order('name')
+    ]);
 
     setCodexData({
       characters: charRes.data || [],
@@ -127,11 +125,51 @@ const [charRes, locRes, itemRes] = await Promise.all([
       items: itemRes.data || []
     });
 
+    // ========================================================
+    // 5. AUTOMATISCH DE LAATST ACTIEVE SCÈNE VAN DIT PROJECT OPENEN
+    // ========================================================
+    if (project.last_active_scene_id) {
+      console.log("Sessie herstellen: Op zoek naar scène-ID:", project.last_active_scene_id);
+      
+      let foundScene = null;
+
+      // We zoeken door de lokaal opgebouwde scenesMap heen
+      Object.values(scenesMap).forEach((sceneArray: any) => {
+        const match = sceneArray.find((s: any) => s.id === project.last_active_scene_id);
+        if (match) {
+          foundScene = match;
+        }
+      });
+
+      // Als de scène is gevonden, dwingen we de interface in de juiste stand
+      if (foundScene) {
+        console.log("Scène gevonden! Tekst inladen...", (foundScene as any).title);
+        
+        // Activeer de scène en de tekst in de editor
+        setSelectedScene(foundScene);
+        setProse((foundScene as any).prose || "");
+        
+        // Zorg dat het bijbehorende hoofdstuk openklapt in de sidebar
+        if ((foundScene as any).chapter_id) {
+          setExpandedChapters((prev) => 
+            prev.includes((foundScene as any).chapter_id) ? prev : [...prev, (foundScene as any).chapter_id]
+          );
+        }
+      } else {
+        console.log("Scène-ID stond in project, maar kon niet worden gevonden in de ingeladen data.");
+        setSelectedScene(null);
+        setProse("");
+      }
+    } else {
+      // Als er nog helemaal geen actieve scène bekend was voor dit boek
+      setSelectedScene(null);
+      setProse("");
+    }
+
   } catch (error) {
     console.error("Fout bij laden projectgegevens:", error);
   }
-}; // Dit sluit de functie correct af
-
+};
 const toggleChapter = async (chapterId: string) => {
   // 1. Data ophalen als we die nog niet hebben
 // We halen de data ALTIJD op (of we maken de check slimmer)
