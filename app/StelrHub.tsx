@@ -2,10 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
 import { supabase } from './lib/supabase'; // Pas aan naar jouw eigen supabase-import
 
-export default function StelrHub({ onSelectProject, onSelectScene }) {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [lastSession, setLastSession] = useState(null);
+export default function StelrHub({ 
+  onSelectProject, 
+  onSelectScene 
+}: { 
+  onSelectProject: (project: any) => void; 
+  onSelectScene: (projectId: string, sceneId: string) => void; 
+}) {
+const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [lastSession, setLastSession] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   
   // State voor het nieuwe manuscript formulier
