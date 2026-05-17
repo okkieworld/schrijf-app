@@ -74,9 +74,9 @@ const [projects, setProjects] = useState<any[]>([]);
           });
         }
       }
-    } catch (error) {
-      console.error('Fout bij het laden van de STELR Hub:', error.message);
-    } finally {
+} catch (error: any) {
+  console.error('Fout bij het laden van de STELR Hub:', error?.message || error);
+} finally {
       setLoading(false);
     }
   }
@@ -112,9 +112,9 @@ const [projects, setProjects] = useState<any[]>([]);
       
       // Stuur de gebruiker direct door naar het zojuist aangemaakte project
       onSelectProject(data);
-    } catch (error) {
-      alert('Fout bij aanmaken manuscript: ' + error.message);
-    }
+} catch (error: any) {
+  alert('Fout bij aanmaken manuscript: ' + (error?.message || error));
+}
   }
 
   if (loading) {
