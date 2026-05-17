@@ -623,19 +623,15 @@ ${involvedCharacters.length > 0
 {/* NIEUW: De 'Terug naar Hub' link (alleen zichtbaar als een project open staat) */}
         {selectedProject && (
           <div className="px-4 pt-3 pb-1 border-b border-stone-300/60">
-            <button
-              onClick={() => {
-                setSelectedProject(null);
-                setSelectedScene(null);
-                setProse("");
-              }}
-              className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-stone-600 hover:text-orange-950 hover:bg-stone-300/50 rounded transition-all"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-              </svg>
-              Naar de Hub
-            </button>
+            <Link
+  href="/hub"
+  className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-stone-600 hover:text-orange-950 hover:bg-stone-300/50 rounded transition-all"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+  </svg>
+  Naar de Hub
+</Link>
           </div>
         )}
   <div className="flex-1 overflow-y-auto p-2 space-y-2">
