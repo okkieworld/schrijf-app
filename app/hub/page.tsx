@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Book, Plus, Feather, ArrowRight, Clock, Loader2 } from 'lucide-react';
+import { Book, Plus, Feather, ArrowRight, Clock, Loader2, Menu, X } from 'lucide-react';
+// We gebruiken tijdelijk geen Image van 'next/image' om Next.js-optimalisatieproblemen uit te sluiten
 import { supabase } from '../lib/supabase';
-import { useRouter } from 'next/navigation'; // <-- Voeg deze regel toe bovenin
+import { useRouter } from 'next/navigation';
 
-export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekker schoon!
-  const router = useRouter(); // <-- Activeert de navigatie
+export default function StelrHub() {
+  const router = useRouter();
   
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastSession, setLastSession] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // State voor het nieuwe manuscript formulier
   const [formData, setFormData] = useState({
     title: '',
     synopsis: '',
@@ -24,16 +25,13 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
     fetchHubData();
   }, []);
 
-
   async function fetchHubData() {
     try {
       setLoading(true);
       
-      // 1. Haal de ingelogde gebruiker op (Essentieel voor RLS)
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) return;
 
-      // 2. Haal projecten op (RLS filtert automatisch op jouw user_id)
       const { data: projectData, error: projError } = await supabase
         .from('projects')
         .select('*')
@@ -42,7 +40,6 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
       if (projError) throw projError;
       setProjects(projectData || []);
 
-      // 3. Haal de laatste sessie op uit je zojuist geverifieerde 'profiles' tabel
       const { data: profileData, error: profError } = await supabase
         .from('profiles')
         .select('last_active_project_id, last_active_scene_id')
@@ -51,7 +48,6 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
 
       if (profError) throw profError;
 
-      // Als er een opgeslagen positie is, haal de titels op voor de 'Schrijf verder' banner
       if (profileData && profileData.last_active_project_id && profileData.last_active_scene_id) {
         const { data: sceneData } = await supabase
           .from('scenes')
@@ -74,14 +70,14 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
           });
         }
       }
-} catch (error: any) {
-  console.error('Fout bij het laden van de STELR Hub:', error?.message || error);
-} finally {
+    } catch (error: any) {
+      console.error('Fout bij het laden van de STELR Hub:', error?.message || error);
+    } finally {
       setLoading(false);
     }
   }
 
- async function handleCreateProject(e: React.FormEvent) {
+  async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
@@ -89,7 +85,6 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Niet ingelogd");
 
-      // We sturen user_id mee om te voldoen aan je RLS INSERT policy
       const { data, error } = await supabase
         .from('projects')
         .insert([
@@ -105,61 +100,94 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
 
       if (error) throw error;
       
-      // Voeg toe aan lokale state en sluit formulier
       setProjects([data, ...projects]);
       setFormData({ title: '', synopsis: '', writing_style: 'Standaard' });
       setIsCreating(false);
       
-// Stuur de gebruiker direct door naar de schrijfomgeving met het juiste project-id in de URL
       router.push(`/?project=${data.id}`);
-} catch (error: any) {
-  alert('Fout bij aanmaken manuscript: ' + (error?.message || error));
-}
+    } catch (error: any) {
+      alert('Fout bij aanmaken manuscript: ' + (error?.message || error));
+    }
   }
 
   if (loading) {
     return (
       <div className="h-screen bg-[#F7F9FA] flex flex-col items-center justify-center font-sans">
         <Loader2 className="text-[#3D5A6C] animate-spin mb-4" size={32} />
-<div className="text-[#3D5A6C] font-['Montserrat'] text-xs font-semibold tracking-widest uppercase">STELR WORDT GELADEN...</div>
+        <div className="text-[#3D5A6C] font-['Montserrat'] text-xs font-semibold tracking-widest uppercase">STELR WORDT GELADEN...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F9FA] text-[#2B3A42] font-sans antialiased p-6 md:p-12">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#F7F9FA] text-[#2B3A42] font-sans antialiased">
+      
+      {/* RESPONSIVE HEADER */}
+{/* RESPONSIVE HEADER (LOGO ALTIJD PERFECT IN HET MIDDEN) */}
+      <header className="relative w-full max-w-7xl mx-auto px-6 pt-6 md:pt-10 flex items-center justify-between border-b border-gray-200/60 pb-6 mb-12 min-h-[80px]">
         
-        {/* BRANDING LOGO */}
-        <div className="flex items-center space-x-3 mb-16 border-b border-gray-200/60 pb-6">
-          <div className="w-10 h-10 bg-[#3D5A6C] rounded-[4px] flex items-center justify-center shadow-sm">
-            <Feather className="text-[#F7F9FA]" size={20} />
-          </div>
-          <div>
-<span className="text-2xl font-['Montserrat'] tracking-wider font-bold uppercase text-[#3D5A6C] block leading-none">STELR</span>
-<span className="text-[10px] tracking-widest text-[#9FA084] font-medium uppercase font-['Montserrat']">Bouw je verhaal</span>
+        {/* Linkerkant leeg houden (of hier later iets plaatsen, bijv. een terug-knop) */}
+        <div className="flex-1"></div>
+
+        {/* LOGO SECTIE (Zweeft absoluut in het exacte midden van de header) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+          <div className="pointer-events-auto">
+            <img 
+              src="/images/StelrLogo.png" 
+              alt="STELR Logo"
+              className="h-16 md:h-24 w-auto object-contain block" // h-16 op mobiel, h-20 op grotere schermen
+              style={{ minWidth: '140px' }}
+              onError={(e) => {
+                console.error("Afbeelding kon niet geladen worden vanaf /images/StelrLogo.png");
+              }}
+            />
           </div>
         </div>
 
+        {/* HAMBURGER MENU BUTTON (Rechtsboven, flex-1 zorgt dat hij netjes rechts uitlijnt) */}
+        <div className="flex-1 flex justify-end relative z-20">
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="p-2 text-[#3D5A6C] hover:bg-gray-100 rounded-md transition-colors"
+            aria-label="Menu"
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+
+          {/* Dropdown menu */}
+          {isMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-[4px] shadow-lg py-2 z-50 animate-fadeIn">
+              <div className="px-4 py-2 text-xs font-['Montserrat'] font-semibold uppercase text-gray-400 border-b border-gray-100">Menu</div>
+              <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-[#2B3A42] transition-colors">Profiel</button>
+              <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 text-[#2B3A42] transition-colors">Instellingen</button>
+              <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 text-red-600 transition-colors border-t border-gray-100">Uitloggen</button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* HOOFD-FUNCTIONALITEIT COMPONENTEN */}
+      <main className="max-w-5xl mx-auto px-6 pb-12">
+        
         {/* RECENTE SESSIE (SCHRIJF VERDER BANNER) */}
         {lastSession && !isCreating && (
           <div className="bg-white border border-gray-200 border-l-4 border-l-[#9FA084] p-6 rounded-[4px] shadow-sm mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start space-x-4">
               <Clock className="text-[#3D5A6C] shrink-0 mt-0.5" size={20} />
               <div>
-<h2 className="text-[11px] font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-1">Waar je gebleven bent</h2>
+                <h2 className="text-[11px] font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-1">Waar je gebleven bent</h2>
                 <p className="text-sm text-[#2B3A42]">
                   Je werkte laatst aan <strong className="font-semibold">"{lastSession.sceneTitle}"</strong> in <em className="italic text-gray-500">{lastSession.projectTitle}</em>.
                 </p>
               </div>
             </div>
-<button 
-  onClick={() => router.push(`/?project=${lastSession.projectId}&scene=${lastSession.sceneId}`)}
-  className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
->
-  <span>Hervatten</span>
-  <ArrowRight size={14} />
-</button>
+            <button 
+              onClick={() => router.push(`/?project=${lastSession.projectId}&scene=${lastSession.sceneId}`)}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-[#3D5A6C] text-white font-['Montserrat'] text-xs font-semibold uppercase tracking-wider rounded-[4px] hover:bg-[#3D5A6C]/90 transition-colors whitespace-nowrap self-start sm:self-center shadow-sm"
+            >
+              <span>Hervatten</span>
+              <ArrowRight size={14} />
+            </button>
           </div>
         )}
 
@@ -177,7 +205,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
           )}
         </div>
 
-        {/* NIEF MANUSCRIPT FORMULIER (Verschijnt in plaats van/naast de kaarten) */}
+        {/* NIEUW MANUSCRIPT FORMULIER */}
         {isCreating ? (
           <div className="bg-white p-8 rounded-[4px] border border-gray-200 shadow-sm max-w-2xl animate-fadeIn">
             <h2 className="text-sm font-['Montserrat'] tracking-wider font-semibold uppercase text-[#3D5A6C] mb-6 pb-2 border-b border-gray-100">
@@ -242,7 +270,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
           </div>
         ) : (
           /* MANUSCRIPTEN OVERZICHT GRID */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {projects.map((project) => (
               <div 
                 key={project.id}
@@ -271,7 +299,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
               </div>
             ))}
 
-            {/* LEGE STAAT (Als de schrijver nog helemaal niks heeft) */}
+            {/* LEGE STAAT */}
             {projects.length === 0 && (
               <div className="col-span-full bg-white p-16 text-center border border-gray-200 rounded-[4px] shadow-sm">
                 <Feather className="text-gray-300 mx-auto mb-4" size={40} />
@@ -287,7 +315,7 @@ export default function StelrHub() { // <-- Props zijn hier nu weg, dat is lekke
           </div>
         )}
 
-      </div>
+      </main>
     </div>
   );
 }
