@@ -17,13 +17,13 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any maskable', // CRUCIEEL VOOR ANDROID: Vertelt Chrome dat dit icoon rond of vierkant afgesneden mag worden
       },
       {
-        src: '/icons/icon-512x512.png',
+        src: '/icons/icon-512x512.png?v=2',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any maskable', // CRUCIEEL VOOR ANDROID
       },
       {
-        src: '/apple-touch-icon.png',
+        src: '/apple-touch-icon.png?v=2',
         sizes: '180x180',
         type: 'image/png',
       },
