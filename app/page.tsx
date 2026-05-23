@@ -363,6 +363,21 @@ const STELR_THEME = {
       if (selectedScene?.id === sceneId) { setSelectedScene(null); setProse(""); }
     }
   };
+// ==========================================
+  // BEREKENING HOOFDSTUK- EN SCÈNENUMMER VOOR HEADER
+  // ==========================================
+  const currentChapterOrd = useMemo(() => {
+    if (!selectedScene?.chapter_id) return null;
+    const ch = chapters.find((c) => c.id === selectedScene.chapter_id);
+    return ch ? ch.ord : null;
+  }, [selectedScene, chapters]);
+
+  const currentLocalSceneNumber = useMemo(() => {
+    if (!selectedScene?.chapter_id) return null;
+    const chapterScenes = scenes[selectedScene.chapter_id] || [];
+    const idx = chapterScenes.findIndex((s: any) => s.id === selectedScene.id);
+    return idx !== -1 ? idx + 1 : null;
+  }, [selectedScene, scenes]);
 
   // ==========================================
   // BLOK 6: EDITOR HELPERS (Opmaak & Styling)
@@ -432,13 +447,24 @@ const STELR_THEME = {
         />
       </div>
 
-      {/* Dynamic Titles */}
+{/* Dynamic Titles */}
       <div className="flex flex-col items-center max-w-[50%] md:max-w-[60%] truncate text-center px-2">
         <span className="block text-[9px] md:text-[10px] uppercase tracking-widest text-[var(--stelr-primary)]/40 font-bold leading-none mb-1 truncate max-w-full">
           {selectedProject ? selectedProject.title : "Geen manuscript"}
         </span>
         <h1 className="font-serif italic font-semibold text-[var(--stelr-primary)] text-xs md:text-base truncate leading-tight max-w-full">
-          {selectedScene ? selectedScene.title : "Geen scène geselecteerd"}
+          {selectedScene ? (
+            <>
+              {currentChapterOrd && currentLocalSceneNumber && (
+                <span className="not-italic font-sans font-bold text-[var(--stelr-accent)] mr-1.5 text-xs md:text-sm">
+                  H{currentChapterOrd}.{currentLocalSceneNumber}
+                </span>
+              )}
+              {selectedScene.title}
+            </>
+          ) : (
+            "Geen scène geselecteerd"
+          )}
         </h1>
       </div>
 
