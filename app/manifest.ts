@@ -11,16 +11,28 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#334a56',
     icons: [
       {
-        src: '/icons/icon-192x192.png?v=2',
+        src: '/icons/icon-192x192.png?v=3',
         sizes: '192x192',
         type: 'image/png',
-        purpose: 'maskable', // Gecorrigeerd naar de geldige TypeScript waarde
+        purpose: 'any', // Voor gewone weergave (mag transparant zijn)
       },
       {
-        src: '/icons/icon-512x512.png?v=2',
+        src: '/icons/icon-192x192.png?v=3',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable', // Voor telefoons die het icoon willen uitsnijden
+      },
+      {
+        src: '/icons/icon-512x512.png?v=3',
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'maskable', // Gecorrigeerd naar de geldige TypeScript waarde
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-512x512.png?v=3',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
       {
         src: '/apple-touch-icon.png',
