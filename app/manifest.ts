@@ -11,19 +11,19 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#334a56',
     icons: [
       {
-        src: '/icons/icon-192x192.png',
+        src: '/icons/icon-192x192.png?v=2',
         sizes: '192x192',
         type: 'image/png',
-        purpose: 'any maskable', // CRUCIEEL VOOR ANDROID: Vertelt Chrome dat dit icoon rond of vierkant afgesneden mag worden
+        purpose: 'maskable', // Gecorrigeerd naar de geldige TypeScript waarde
       },
       {
         src: '/icons/icon-512x512.png?v=2',
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'any maskable', // CRUCIEEL VOOR ANDROID
+        purpose: 'maskable', // Gecorrigeerd naar de geldige TypeScript waarde
       },
       {
-        src: '/apple-touch-icon.png?v=2',
+        src: '/apple-touch-icon.png',
         sizes: '180x180',
         type: 'image/png',
       },
