@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "STELR Writer",
   description: "De ultieme schrijf-app for manuscripten en wereldbeheer.",
-  manifest: "/manifest.json", // Dit linkt naar je manifest.ts / manifest.json
+  manifest: "/manifest.json", // Dit linkt nu direct naar public/manifest.json
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
