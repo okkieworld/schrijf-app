@@ -16,7 +16,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "STELR Writer",
   description: "De ultieme schrijf-app voor manuscripten en wereldbeheer.",
-  manifest: "/manifest.json?v=2", // <--- Voeg hier ?v=2 aan toe!
 };
 
 // Mobiele viewport optimalisaties (voorkomt o.a. zoomen bij typen)
