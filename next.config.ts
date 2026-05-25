@@ -7,7 +7,16 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  /* Jouw eventuele andere config opties kunnen hier blijven staan */
+  // Dit zorgt ervoor dat als er gezocht wordt naar manifest.json, 
+  // Next.js de nieuwe foutloze manifest-route serveert!
+  async rewrites() {
+    return [
+      {
+        source: "/manifest.json",
+        destination: "/manifest.webmanifest",
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
