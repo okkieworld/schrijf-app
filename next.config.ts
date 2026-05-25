@@ -4,9 +4,7 @@ import withPWAInit from "@ducanh2912/next-pwa";
 const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
-  // Dit zorgt ervoor dat de plugin niet vecht met app/manifest.ts:
-  register: true,
-  skipWaiting: true,
+  register: true, // Dit mag blijven staan
 });
 
 const nextConfig: NextConfig = {
