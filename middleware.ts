@@ -49,5 +49,16 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-}
+  matcher: [
+    /*
+     * Match alle requests behalve die beginnen met:
+     * - _next/static (statische bestanden)
+     * - _next/image (afbeeldingsoptimalisatie)
+     * - favicon.ico (site-icoon)
+     * - manifest.webmanifest / manifest.json (PWA manifesten)
+     * - sw.js / workbox-*.js (Service Worker bestanden)
+     * - icons (PWA icoontjes in de public map)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest|manifest\\.json|sw\\.js|workbox-.*\\.js|icons/).*)',
+  ],
+};
