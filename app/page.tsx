@@ -20,7 +20,17 @@ import Link from 'next/link';
 // FUNCTIE:
 // ==========================================
 // De originele Feather Icon 'Feather' als pure SVG component
-function OriginalFeatherIcon({ size = 22, className = "" }: { size?: number; className?: string }) {
+import React from 'react';
+
+// Gedeelde TypeScript blauwdruk voor alle STELR iconen
+interface IconProps {
+  size?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+// 1. JOUW ORIGINELE VEER ICON
+export function OriginalFeatherIcon({ size = 22, className = "", style }: IconProps) {
   return (
     <svg 
       width={size} 
@@ -28,13 +38,56 @@ function OriginalFeatherIcon({ size = 22, className = "" }: { size?: number; cla
       viewBox="0 0 24 24" 
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
     >
       <path 
-        fill="currentColor" /* Zorgt dat de veer de tekstkleur van je CSS/Tailwind aanneemt */
+        fill="currentColor" 
         stroke="currentColor" 
         strokeWidth="0.264583" 
         d="m 2.5813051,22.63606 c 0.6705772,-0.494398 1.6561616,-2.346052 2.7576317,-2.784286 0.2598183,-0.103372 -0.1187159,-2.006829 1.5313059,-4.165382 3.1361043,-0.546495 4.9119383,-2.161774 6.5922563,-3.852101 -1.765578,0.54515 -2.041926,0.271772 -2.859292,0.07942 3.305525,-0.607924 5.071188,-1.591805 6.473119,-3.8918132 -1.350827,0.2208936 -3.274837,0.1935116 -3.693252,-10e-8 4.085078,-0.9016829 5.759559,-4.2062255 7.942477,-6.9099549 -4.098094,0.1993918 -6.946767,1.48477 -9.372122,2.9387166 C 10.604814,5.7268966 10.96206,5.9027284 10.722344,6.6716807 10.138224,6.5277407 10.26264,5.1590027 10.48407,4.2095129 9.0668648,5.6893066 7.6647629,7.4643483 7.6644904,10.563494 6.9980824,9.6875543 6.7707359,8.6141653 6.6716807,8.021902 4.9964045,10.139895 5.4145278,12.416739 5.4008845,14.534733 9.6565968,7.8827584 12.908156,6.2099478 16.242366,3.6535394 12.782898,6.7619523 9.0433413,10.004447 5.4803091,15.80553 Z" 
       />
+    </svg>
+  );
+}
+
+// 2. HET GOLVENDE LIJN ICON (Proza / Editor overlay)
+export function ProseLineIcon({ size = 22, className = "" , style}: IconProps) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path 
+        d="M 3 20 Q 8 16, 13 20 T 22 19" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// 3. HET BLOKJES ICON (Scène-overzicht overlay)
+export function SceneBlocksIcon({ size = 22, className = "", style }: IconProps) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <g fill="currentColor">
+        <rect x="3" y="18" width="4" height="2.5" rx="0.75" />
+        <rect x="9" y="18" width="4" height="2.5" rx="0.75" />
+        <rect x="15" y="18" width="4" height="2.5" rx="0.75" />
+      </g>
     </svg>
   );
 }
@@ -56,6 +109,7 @@ export default function WritingApp() {
   // States voor de 3 nieuwe icoon-links
   const [currentMode, setCurrentMode] = useState<"editor" | "scenes">("editor");
   const [isAiMenuOpen, setIsAiMenuOpen] = useState(false);
+  const [isCharactersOpen, setIsCharactersOpen] = useState(false);
 
   // Tabs & Codex State
   const [activeTab, setActiveTab] = useState("kaart"); 
@@ -167,21 +221,41 @@ const STELR_THEME = {
           <ArrowLeft size={22} />
         </button>
 
-        {/* Link 2: Toggle Editor / Scènes via JOUW ECHTE STELR VEER */}
-        <button 
-          onClick={() => setCurrentMode(currentMode === "editor" ? "scenes" : "editor")}
-          className="p-2 rounded-md transition-colors bg-transparent"
-          style={{ 
-            color: currentMode === "editor" ? STELR_THEME.accent : STELR_THEME.primary 
-          }}
-          title={currentMode === "editor" ? "Wissel naar Scène-overzicht" : "Wissel naar Editor"}
-        >
-          {currentMode === "editor" ? (
-            <OriginalFeatherIcon size={22} />
-          ) : (
-            <Book size={22} /> 
-          )}
-        </button>
+{/* Link 2: Toggle Editor / Scènes via de gelaagde STELR VEER */}
+<button 
+  onClick={() => setCurrentMode(currentMode === "editor" ? "scenes" : "editor")}
+  className="p-2 rounded-md transition-all duration-300 bg-transparent relative group"
+  title={currentMode === "editor" ? "Wissel naar Scène-overzicht" : "Wissel naar Editor"}
+>
+  <div className="relative w-[22px] h-[22px]">
+    {/* LAAG 1: De basisveer (altijd in beeld) */}
+    {/* We geven hem een subtiele basiskleur, of de actieve themakleur */}
+    <OriginalFeatherIcon 
+      size={22} 
+      style={{ 
+        color: currentMode === "editor" ? STELR_THEME.accent : STELR_THEME.primary 
+      }} 
+      className="transition-colors duration-300 opacity-60 group-hover:opacity-100"
+    />
+    
+    {/* LAAG 2: De Modus Overlay (valt er exact overheen) */}
+    {currentMode === "editor" ? (
+      // De golvende lijn krijgt bijvoorbeeld de felle accentkleur
+      <ProseLineIcon 
+        size={22} 
+        className="absolute top-0 left-0 transition-colors duration-300"
+        style={{ color: STELR_THEME.accent }}
+      />
+    ) : (
+      // De blokjes lichten op in de scènemodus
+      <SceneBlocksIcon 
+        size={22} 
+        className="absolute top-0 left-0 transition-colors duration-300"
+        style={{ color: STELR_THEME.accent }} // Of STELR_THEME.primary net wat je mooi vindt!
+      />
+    )}
+  </div>
+</button>
 
         {/* Link 3: Sparkle met AI Submenu */}
         <div className="relative">
@@ -226,7 +300,7 @@ const STELR_THEME = {
     );
   };
 
-  // ==========================================
+ // ==========================================
   // BLOK 4: DATA FETCHING & SYNC (Supabase Handlers)
   // ==========================================
   const fetchProjects = useCallback(async () => {
@@ -322,6 +396,22 @@ const STELR_THEME = {
     []
   );
 
+  // NIEUW: Zorg dat de editor ALTIJD bovenaan begint bij het wisselen van een scène
+  useEffect(() => {
+    if (selectedScene?.id) {
+      // 1. Reset de scrollpositie van de editor zelf
+      const editorElement = document.getElementById("schrijfveld");
+      if (editorElement) {
+        editorElement.scrollTop = 0;
+      }
+      
+      // 2. Reset de globale window-scroll (belangrijk voor mobiele apparaten/kleine schermen)
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [selectedScene?.id]);
+
+
+
   // ==========================================
   // BLOK 5: CRUD ACTIONS (Add, Update & Delete)
   // ==========================================
@@ -363,6 +453,93 @@ const STELR_THEME = {
       if (selectedScene?.id === sceneId) { setSelectedScene(null); setProse(""); }
     }
   };
+// Hoofdstuk hernoemen
+  const renameChapter = async (chapterId: string, currentTitle: string) => {
+    const newTitle = prompt("Wijzig hoofdstuknaam:", currentTitle);
+    if (!newTitle || newTitle.trim() === "") return;
+
+    const { error } = await supabase
+      .from('chapters')
+      .update({ title: newTitle.trim() })
+      .eq('id', chapterId);
+
+    if (!error) {
+      setChapters((prev) =>
+        prev.map((c) => (c.id === chapterId ? { ...c, title: newTitle.trim() } : c))
+      );
+    } else {
+      alert("Fout bij het hernoemen van het hoofdstuk.");
+    }
+  };
+
+  // Hoofdstuk verwijderen (inclusief scènes)
+  const deleteChapter = async (chapterId: string, chapterTitle: string) => {
+    const chapterScenes = scenes[chapterId] || [];
+    
+    // Waarschuwing bouwen als er nog scènes in staan
+    const warningText = chapterScenes.length > 0 
+      ? `LET OP: Dit hoofdstuk bevat ${chapterScenes.length} scène(s). Deze worden ook permanent verwijderd!\n\n`
+      : "";
+
+    if (!confirm(`${warningText}Weet je zeker dat je "${chapterTitle}" wilt verwijderen?`)) return;
+
+    // Supabase regelt vaak CASCADE deletes, maar we doen het hier handmatig voor de zekerheid/veiligheid
+    if (chapterScenes.length > 0) {
+      await supabase.from('scenes').delete().eq('chapter_id', chapterId);
+    }
+
+    const { error } = await supabase.from('chapters').delete().eq('id', chapterId);
+
+    if (!error) {
+      // Update chapters state
+      setChapters((prev) => prev.filter((c) => c.id !== chapterId));
+      // Schoon de scènes state op voor dit hoofdstuk
+      setScenes((prev) => {
+        const updated = { ...prev };
+        delete updated[chapterId];
+        return updated;
+      });
+      // Als de geselecteerde scène in dit hoofdstuk zat, deselecteren we hem
+      if (selectedScene?.chapter_id === chapterId) {
+        setSelectedScene(null);
+        setProse("");
+      }
+    } else {
+      alert("Fout bij het verwijderen van het hoofdstuk.");
+    }
+  };
+
+  // Scène hernoemen vanuit de sidebar
+  const renameSceneInline = async (sceneId: string, chapterId: string, currentTitle: string) => {
+    const newTitle = prompt("Wijzig scènenaam:", currentTitle);
+    if (!newTitle || newTitle.trim() === "") return;
+
+    const { error } = await supabase
+      .from('scenes')
+      .update({ title: newTitle.trim() })
+      .eq('id', sceneId);
+
+    if (!error) {
+      // Update in de lokale scènes map
+      setScenes((prev: any) => ({
+        ...prev,
+        [chapterId]: (prev[chapterId] || []).map((s: any) => 
+          s.id === sceneId ? { ...s, title: newTitle.trim() } : s
+        )
+      }));
+      // Als dit de momenteel geopende scène is, updaten we die state ook
+      if (selectedScene?.id === sceneId) {
+        setSelectedScene((prev: any) => ({ ...prev, title: newTitle.trim() }));
+      }
+    } else {
+      alert("Fout bij het hernoemen van de scène.");
+    }
+  };
+
+
+
+
+
 // ==========================================
   // BEREKENING HOOFDSTUK- EN SCÈNENUMMER VOOR HEADER
   // ==========================================
@@ -532,7 +709,7 @@ const STELR_THEME = {
       {isRightSidebarOpen && <div onClick={() => setIsRightSidebarOpen(false)} className="fixed inset-0 bg-[var(--stelr-primary)]/20 backdrop-blur-xs z-40 xl:hidden" />}
 
       {/* --- SUB-BLOK: LINKER SIDEBAR (Manuscript & Structuur) --- */}
-      <nav className={`
+<nav className={`
         fixed inset-y-0 left-0 w-72 bg-white border-r border-[var(--stelr-primary)]/10 flex flex-col h-full z-50 transition-transform duration-300 ease-in-out pt-16 lg:pt-0
         lg:relative lg:translate-x-0 ${isLeftSidebarOpen ? "translate-x-0" : "-translate-x-full"}
       `}>
@@ -549,21 +726,60 @@ const STELR_THEME = {
               </button>
 
               {selectedProject?.id === p.id && chapters.map((c) => (
-                <div key={c.id} className="ml-2 space-y-1">
-                  <button onClick={() => toggleChapter(c.id)} className="w-full text-left text-xs font-semibold p-1 flex items-center gap-1 text-[var(--stelr-primary)]/80 truncate">
-                    <ChevronDown size={12} className={`${expandedChapters.includes(c.id) ? "" : "-rotate-90"} transition-transform`} />
-                    H{c.ord}: {c.title}
-                  </button>
+                <div key={c.id} className="ml-2 space-y-1 group/chapter">
+                  {/* Hoofdstuk header met acties */}
+                  <div className="flex items-center justify-between p-1 rounded hover:bg-stone-50 transition-colors">
+                    <button 
+                      onClick={() => toggleChapter(c.id)} 
+                      className="text-left text-xs font-semibold flex items-center gap-1 text-[var(--stelr-primary)]/80 truncate flex-1 min-w-0"
+                    >
+                      <ChevronDown size={12} className={`${expandedChapters.includes(c.id) ? "" : "-rotate-90"} transition-transform shrink-0`} />
+                      <span className="truncate">H{c.ord}: {c.title}</span>
+                    </button>
+                    
+                    {/* Actieknoppen voor hoofdstuk (verschijnen bij hover) */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover/chapter:opacity-100 transition-opacity ml-1 shrink-0">
+                      <button 
+                        onClick={() => renameChapter(c.id, c.title)}
+                        className="p-0.5 text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-accent)] text-[10px]"
+                        title="Hernoem hoofdstuk"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        onClick={() => deleteChapter(c.id, c.title)}
+                        className="p-0.5 text-[var(--stelr-primary)]/40 hover:text-red-500 text-[10px]"
+                        title="Verwijder hoofdstuk"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
 
+                  {/* Scènes binnen hoofdstuk */}
                   {expandedChapters.includes(c.id) && (
                     <div className="ml-3 border-l border-[var(--stelr-primary)]/20 pl-2 space-y-0.5">
                       {scenes[c.id]?.map((s: any) => (
-                        <button key={s.id} onClick={() => handleSceneChange(s)} className={`w-full text-left p-1 text-xs rounded truncate flex items-center gap-2 transition-colors ${selectedScene?.id === s.id ? "font-bold text-[var(--stelr-accent)] bg-[var(--stelr-accent)]/10" : "text-[var(--stelr-primary)]/60 hover:text-[var(--stelr-primary)]"}`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(s.status)}`} />
-                          <span className="truncate">{s.title}</span>
-                        </button>
+                        <div key={s.id} className="flex items-center justify-between group/scene p-0.5 rounded hover:bg-stone-50/50">
+                          <button 
+                            onClick={() => handleSceneChange(s)} 
+                            className={`text-left p-1 text-xs rounded truncate flex items-center gap-2 transition-colors flex-1 min-w-0 ${selectedScene?.id === s.id ? "font-bold text-[var(--stelr-accent)] bg-[var(--stelr-accent)]/10" : "text-[var(--stelr-primary)]/60 hover:text-[var(--stelr-primary)]"}`}
+                          >
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getStatusColor(s.status)}`} />
+                            <span className="truncate">{s.title}</span>
+                          </button>
+
+                          {/* Actieknop voor scène (verschijnt bij hover) */}
+                          <button 
+                            onClick={() => renameSceneInline(s.id, c.id, s.title)}
+                            className="opacity-0 group-hover/scene:opacity-100 transition-opacity p-0.5 text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-accent)] text-[9px] shrink-0 ml-1"
+                            title="Hernoem scène"
+                          >
+                            ✏️
+                          </button>
+                        </div>
                       ))}
-                      <button onClick={() => addScene(c.id)} className="text-[11px] text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-accent)] block pt-1 transition-colors">+ Scène</button>
+                      <button onClick={() => addScene(c.id)} className="text-[11px] text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-accent)] block pt-1 transition-colors pl-3">+ Scène</button>
                     </div>
                   )}
                 </div>
@@ -641,13 +857,119 @@ const STELR_THEME = {
                 </select>
               </div>
 
-              <div>
-                <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">POV Personage</label>
-                <select value={selectedScene.pov || ""} onChange={(e) => updateSceneField(selectedScene.id, 'pov', e.target.value)} className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded text-[var(--stelr-primary)] focus:outline-none">
-                  <option value="">— Kies POV —</option>
-                  {codexData.characters.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-              </div>
+<div>
+  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">POV Personage</label>
+  <select 
+    value={selectedScene.character_id || ""} 
+    onChange={(e) => updateSceneField(selectedScene.id, 'character_id', e.target.value || null)} 
+    className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded text-[var(--stelr-primary)] focus:outline-none"
+  >
+    <option value="">— Kies POV —</option>
+    {codexData.characters.map((c: any) => (
+      <option key={c.id} value={c.id}>{c.name}</option>
+    ))}
+  </select>
+</div>
+
+      {/* --- Betrokken personages --- */}
+<div className="pt-2">
+  {/* Klikbare Header om in/uit te klappen */}
+  <button
+    type="button"
+    onClick={() => setIsCharactersOpen(!isCharactersOpen)}
+    className="flex items-center justify-between w-full text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-primary)]/70 transition-colors py-1 focus:outline-none"
+  >
+    <div className="flex items-center gap-1.5">
+      <span>Aanwezige Personages</span>
+      {/* Teller die laat zien hoeveel mensen er in de scène zitten (inclusief POV) */}
+      <span className="bg-[var(--stelr-primary)]/10 text-[var(--stelr-primary)]/70 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold">
+        {(() => {
+          const currentIds = selectedScene.involved_character_ids || [];
+          // We tellen de ID's in de lijst. Als de POV-id er nog niet in zit, tellen we die er handmatig bij op (+1)
+          const hasPov = selectedScene.character_id && currentIds.includes(selectedScene.character_id);
+          return currentIds.length + (selectedScene.character_id && !hasPov ? 1 : 0);
+        })()}
+      </span>
+    </div>
+    
+    {/* Dynamisch pijltje dat meedraait */}
+    <span className="text-[9px] transition-transform duration-250">
+      {isCharactersOpen ? "▼" : "▶"}
+    </span>
+  </button>
+
+  {/* Het veld met de badges: alleen zichtbaar als isCharactersOpen true is */}
+  {isCharactersOpen && (
+    <div className="flex flex-wrap gap-1.5 p-2 mt-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded-md transition-all animate-fadeIn">
+      {codexData.characters.map((char: any) => {
+        const currentIds = selectedScene.involved_character_ids || [];
+        const isInvolved = currentIds.includes(char.id);
+        const isPov = selectedScene.character_id === char.id;
+
+        return (
+          <button
+            key={char.id}
+            type="button"
+            disabled={isPov}
+            onClick={() => {
+              const newIds = isInvolved 
+                ? currentIds.filter((id: string) => id !== char.id)
+                : [...currentIds, char.id];
+              
+              updateSceneField(selectedScene.id, 'involved_character_ids', newIds);
+            }}
+            className={`px-2 py-1 rounded text-[10px] border transition-all select-none ${
+              isPov
+                ? "bg-[var(--stelr-primary)]/10 border-[var(--stelr-primary)]/30 text-[var(--stelr-primary)] font-bold opacity-60 cursor-not-allowed"
+                : isInvolved 
+                  ? "bg-[var(--stelr-primary)]/20 border-[var(--stelr-primary)]/40 text-[var(--stelr-primary)] font-bold shadow-sm" 
+                  : "bg-[var(--stelr-bg)]/50 border-[var(--stelr-primary)]/10 text-[var(--stelr-primary)]/60 hover:opacity-100 hover:bg-[var(--stelr-primary)]/5"
+            }`}
+          >
+            {char.name} {isPov && <span className="text-[9px] opacity-60 ml-0.5">(POV)</span>}
+          </button>
+        );
+      })}
+      {codexData.characters.length === 0 && (
+        <span className="text-xs italic text-[var(--stelr-primary)]/40">Geen personages in Codex</span>
+      )}
+    </div>
+  )}
+</div>
+
+      {/* --- Locatie dropdown --- */}
+
+<div>
+  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Locatie</label>
+  <select 
+    value={selectedScene.location_id || ""} 
+    onChange={(e) => updateSceneField(selectedScene.id, 'location_id', e.target.value || null)} 
+    className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded text-[var(--stelr-primary)] focus:outline-none"
+  >
+    <option value="">— Kies Locatie —</option>
+    
+    {/* Alle hoofdlocaties (locaties die geen parent_location_id hebben) */}
+    {codexData.locations
+      .filter((l: any) => !l.parent_location_id)
+      .map((mainLoc: any) => (
+        <optgroup key={mainLoc.id}>
+          {/* De hoofdlocatie zelf */}
+          <option value={mainLoc.id} className="font-semibold">
+            📍 {mainLoc.name}
+          </option>
+          
+          {/* Alle sub-locaties die direct onder deze hoofdlocatie vallen */}
+          {codexData.locations
+            .filter((subLoc: any) => subLoc.parent_location_id === mainLoc.id)
+            .map((subLoc: any) => (
+              <option key={subLoc.id} value={subLoc.id}>
+                &nbsp;&nbsp;&nbsp;— {subLoc.name}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+  </select>
+</div>
 
               <div>
                 <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Doel van scène</label>
