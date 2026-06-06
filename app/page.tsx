@@ -30,7 +30,7 @@ interface IconProps {
 }
 
 // 1. JOUW ORIGINELE VEER ICON
-export function OriginalFeatherIcon({ size = 22, className = "", style }: IconProps) {
+ function OriginalFeatherIcon({ size = 22, className = "", style }: IconProps) {
   return (
     <svg 
       width={size} 
@@ -51,7 +51,7 @@ export function OriginalFeatherIcon({ size = 22, className = "", style }: IconPr
 }
 
 // 2. HET GOLVENDE LIJN ICON (Proza / Editor overlay)
-export function ProseLineIcon({ size = 22, className = "" , style}: IconProps) {
+ function ProseLineIcon({ size = 22, className = "" , style}: IconProps) {
   return (
     <svg 
       width={size} 
@@ -73,7 +73,7 @@ export function ProseLineIcon({ size = 22, className = "" , style}: IconProps) {
 }
 
 // 3. HET BLOKJES ICON (Scène-overzicht overlay)
-export function SceneBlocksIcon({ size = 22, className = "", style }: IconProps) {
+ function SceneBlocksIcon({ size = 22, className = "", style }: IconProps) {
   return (
     <svg 
       width={size} 
