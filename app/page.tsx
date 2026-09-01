@@ -439,10 +439,39 @@ const STELR_THEME = {
     if (data && data[0]) setChapters([...chapters, data[0]]);
   };
 
-  const addScene = async (chapterId: string) => {
+const addScene = async (chapterId: string) => {
+    // 1. Haal de bestaande scènes op of start met een lege array
     const currentScenes = scenes[chapterId] || [];
-    const { data } = await supabase.from('scenes').insert([{ chapter_id: chapterId, title: 'Nieuwe Scène', prose: '', ord: currentScenes.length + 1 }]).select();
-    if (data && data[0]) setScenes({ ...scenes, [chapterId]: [...currentScenes, data[0]] });
+    
+    // 2. Voeg de scène toe in Supabase
+    const { data, error } = await supabase.from('scenes').insert([{ 
+      chapter_id: chapterId, 
+      title: 'Nieuwe Scène', 
+      prose: '', 
+      ord: currentScenes.length + 1 
+    }]).select();
+
+    if (error) {
+      console.error("Fout bij toevoegen scène:", error);
+      alert("Kon geen scène toevoegen.");
+      return;
+    }
+
+    if (data && data[0]) {
+      const newScene = data[0];
+      
+      // 3. Update de scenes state veilig
+      setScenes((prev: any) => ({ 
+        ...prev, 
+        [chapterId]: [...(prev[chapterId] || []), newScene] 
+      }));
+
+      // 4. BELANGRIJK: Selecteer de nieuwe scène direct zodat de gebruiker kan schrijven!
+      await handleSceneChange(newScene);
+      
+      // 5. Zorg dat het hoofdstuk automatisch openklapt in de sidebar
+      setExpandedChapters((prev) => prev.includes(chapterId) ? prev : [...prev, chapterId]);
+    }
   };
 
   const deleteScene = async (sceneId: string, chapterId: string) => {
