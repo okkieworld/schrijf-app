@@ -440,10 +440,16 @@ const STELR_THEME = {
   };
 
 const addScene = async (chapterId: string) => {
+    if (!selectedProject?.id) {
+      console.error("Geen actief project geselecteerd.");
+      return;
+    }
+
     const currentScenes = scenes[chapterId] || [];
     
-    // Voeg .select() toe en vang de 'error' op om te zien wat Supabase teruggeeft
+    // Voeg nu expliciet ook 'project_id' toe aan het object!
     const { data, error } = await supabase.from('scenes').insert([{ 
+      project_id: selectedProject.id, // <--- DEZE ONTBRAK
       chapter_id: chapterId, 
       title: 'Nieuwe Scène', 
       prose: '', 
@@ -451,8 +457,7 @@ const addScene = async (chapterId: string) => {
     }]).select();
 
     if (error) {
-      console.error("Supabase RLS/Insert fout:", error.message, error.details);
-      alert(`Supabase weigert de invoeging: ${error.message}`);
+      console.error("Supabase insert fout:", error.message, error.details);
       return;
     }
 
@@ -466,7 +471,6 @@ const addScene = async (chapterId: string) => {
       setExpandedChapters((prev) => prev.includes(chapterId) ? prev : [...prev, chapterId]);
     }
   };
-
   const deleteScene = async (sceneId: string, chapterId: string) => {
     if (!confirm("Weet je zeker dat je deze scène wilt verwijderen?")) return;
     const { error } = await supabase.from('scenes').delete().eq('id', sceneId);
