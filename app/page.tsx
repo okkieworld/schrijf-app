@@ -440,10 +440,9 @@ const STELR_THEME = {
   };
 
 const addScene = async (chapterId: string) => {
-    // 1. Haal de bestaande scènes op of start met een lege array
     const currentScenes = scenes[chapterId] || [];
     
-    // 2. Voeg de scène toe in Supabase
+    // Voeg .select() toe en vang de 'error' op om te zien wat Supabase teruggeeft
     const { data, error } = await supabase.from('scenes').insert([{ 
       chapter_id: chapterId, 
       title: 'Nieuwe Scène', 
@@ -452,24 +451,18 @@ const addScene = async (chapterId: string) => {
     }]).select();
 
     if (error) {
-      console.error("Fout bij toevoegen scène:", error);
-      alert("Kon geen scène toevoegen.");
+      console.error("Supabase RLS/Insert fout:", error.message, error.details);
+      alert(`Supabase weigert de invoeging: ${error.message}`);
       return;
     }
 
     if (data && data[0]) {
       const newScene = data[0];
-      
-      // 3. Update de scenes state veilig
       setScenes((prev: any) => ({ 
         ...prev, 
         [chapterId]: [...(prev[chapterId] || []), newScene] 
       }));
-
-      // 4. BELANGRIJK: Selecteer de nieuwe scène direct zodat de gebruiker kan schrijven!
       await handleSceneChange(newScene);
-      
-      // 5. Zorg dat het hoofdstuk automatisch openklapt in de sidebar
       setExpandedChapters((prev) => prev.includes(chapterId) ? prev : [...prev, chapterId]);
     }
   };
