@@ -1,648 +1,554 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { Layout, Save, MoveHorizontal, MapPin, User, Sword, Edit3, Share2, GripVertical, Settings, X } from 'lucide-react';
+// ==========================================
+// BLOK 1: IMPORTS (Bibliotheken, Icons & Config)
+// ==========================================
+import { supabase } from '../lib/supabase'; // Aangepast pad naar lib
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Book, ChevronDown, Menu, X, Sparkles, ArrowLeft, 
+  LogOut, Globe, User, Trash2, GripVertical
+} from 'lucide-react';
 import Link from 'next/link';
 
+// STELR ICON COMPONENTEN (Zelfde als hoofdpagina)
+interface IconProps {
+  size?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function OriginalFeatherIcon({ size = 22, className = "", style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+      <path fill="currentColor" stroke="currentColor" strokeWidth="0.264583" d="m 2.5813051,22.63606 c 0.6705772,-0.494398 1.6561616,-2.346052 2.7576317,-2.784286 0.2598183,-0.103372 -0.1187159,-2.006829 1.5313059,-4.165382 3.1361043,-0.546495 4.9119383,-2.161774 6.5922563,-3.852101 -1.765578,0.54515 -2.041926,0.271772 -2.859292,0.07942 3.305525,-0.607924 5.071188,-1.591805 6.473119,-3.8918132 -1.350827,0.2208936 -3.274837,0.1935116 -3.693252,-10e-8 4.085078,-0.9016829 5.759559,-4.2062255 7.942477,-6.9099549 -4.098094,0.1993918 -6.946767,1.48477 -9.372122,2.9387166 C 10.604814,5.7268966 10.96206,5.9027284 10.722344,6.6716807 10.138224,6.5277407 10.26264,5.1590027 10.48407,4.2095129 9.0668648,5.6893066 7.6647629,7.4643483 7.6644904,10.563494 6.9980824,9.6875543 6.7707359,8.6141653 6.6716807,8.021902 4.9964045,10.139895 5.4145278,12.416739 5.4008845,14.534733 9.6565968,7.8827584 12.908156,6.2099478 16.242366,3.6535394 12.782898,6.7619523 9.0433413,10.004447 5.4803091,15.80553 Z" />
+    </svg>
+  );
+}
 
-export default function ArchitectuurPage() {
-  const [chapters, setChapters] = useState<any[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-  const [draggedScene, setDraggedScene] = useState<any>(null);
-  const [draggedChapter, setDraggedChapter] = useState<any>(null);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedSceneIds, setSelectedSceneIds] = useState<Set<string>>(new Set());
+function SceneBlocksIcon({ size = 22, className = "", style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} style={style}>
+      <g fill="currentColor">
+        <rect x="3" y="18" width="4" height="2.5" rx="0.75" />
+        <rect x="9" y="18" width="4" height="2.5" rx="0.75" />
+        <rect x="15" y="18" width="4" height="2.5" rx="0.75" />
+      </g>
+    </svg>
+  );
+}
+
+export default function ArchitectureApp() {
+  
+  // ==========================================
+  // BLOK 2: APPLICATIE STATES
+  // ==========================================
+  const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<any>(null);
-const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-const [writingStyle, setWritingStyle] = useState("");
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [scenes, setScenes] = useState<Record<string, any>>({});
+  const [selectedScene, setSelectedScene] = useState<any>(null);
+  const [codexData, setCodexData] = useState<any>({ characters: [], locations: [] });
+  
+  // Menu & Sidebar navigation states (Gekopieerd van hoofdpagina)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
+  const [isAiMenuOpen, setIsAiMenuOpen] = useState(false);
 
+  // NIEUW: Accordion states voor mobiel overzicht
+  const [mobileExpandedChapters, setMobileExpandedChapters] = useState<Record<string, boolean>>({});
+  const [mobileActiveSceneCard, setMobileActiveSceneCard] = useState<string | null>(null);
+  const [draggedChapter, setDraggedChapter] = useState<string | null>(null);
 
+  const STATUS_OPTIONS = ["Idee", "Outline", "Concept", "Eerste Versie", "Redactie", "Voltooid", "Archief"];
+  const STELR_THEME = { bg: '#e9eae5', primary: '#334a56', accent: '#888268' };
 
+  // ==========================================
+  // BLOK 3: MOBILE GESTURES (Swipe naar links voor Scènekaart)
+  // ==========================================
+  const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
 
-  // 1. Data ophalen: Hoofdstukken + Scènes + POV + Locatie
-// Voeg deze state toe bovenaan je component
-const [unassignedScenes, setUnassignedScenes] = useState<any[]>([]);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
 
-const fetchStructure = async () => {
-  try {
-    // 1. Haal alle hoofdstukken op
-    const { data: allChapters, error: chapError } = await supabase
-      .from('chapters')
-      .select('*')
-      .order('ord', { ascending: true });
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchStart.x - touchEndX;
+    const diffY = touchStart.y - touchEndY;
 
-    // 2. Haal alle scènes op
-    const { data: allScenes, error: sceneError } = await supabase
-      .from('scenes')
-      .select(`
-        id, 
-        title, 
-        summary, 
-        order_index, 
-        chapter_id,
-        status,
-        pov,
-        setting,
-        purpose,
-        conflict,
-        outcome,
-        prose
-      `);
-
-    if (chapError || sceneError) {
-      console.error("Database details:", chapError || sceneError);
-      return;
-    }
-
-    // 3. Haal Project-informatie op (voor de writing_style)
-    // We gaan ervan uit dat hoofdstukken gekoppeld zijn aan een project_id
-    if (allChapters && allChapters.length > 0) {
-      const projectId = allChapters[0].project_id;
-      
-      const { data: projectData, error: projError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-
-      if (!projError && projectData) {
-        setSelectedProject(projectData);
-        setWritingStyle(projectData.writing_style || "");
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
+      if (diffX > 0 && !isRightSidebarOpen) {
+        setIsRightSidebarOpen(true); // Swipe naar links open details
+      } else if (diffX < 0 && isRightSidebarOpen) {
+        setIsRightSidebarOpen(false); // Swipe naar rechts sluit details
       }
     }
-
-    // 4. Formatteer de data voor de UI
-    const formattedChapters = allChapters.map(ch => ({
-      ...ch,
-      scenes: (allScenes || [])
-        .filter(s => s.chapter_id === ch.id)
-        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-    }));
-
-    // 5. Update states
-    setChapters(formattedChapters);
-    setUnassignedScenes((allScenes || []).filter(s => !s.chapter_id));
-    
-  } catch (err) {
-    console.error("Systeemfout:", err);
-  }
-};
-
-  useEffect(() => { fetchStructure(); }, []);
-
-  // 2. Drag & Drop Logica
-  const handleDragStart = (scene: any) => setDraggedScene(scene);
-
-  const onDrop = (targetChapterId: string, targetIndex: number) => {
-    if (!draggedScene) return;
-
-    const newChapters = [...chapters];
-    // Verwijder uit oud hoofdstuk
-    newChapters.forEach(ch => {
-      ch.scenes = ch.scenes.filter((s: any) => s.id !== draggedScene.id);
-    });
-
-    // Voeg toe aan nieuw hoofdstuk
-    const targetChapter = newChapters.find(ch => ch.id === targetChapterId);
-    if (targetChapter) {
-      targetChapter.scenes.splice(targetIndex, 0, { ...draggedScene, chapter_id: targetChapterId });
-      // Herindexeer
-      targetChapter.scenes = targetChapter.scenes.map((s: any, i: number) => ({ ...s, order_index: i }));
-    }
-
-    setChapters(newChapters);
-    setIsDirty(true);
-    setDraggedScene(null);
-  };
-const onChapterDragStart = (chapter: any) => {
-    setDraggedChapter(chapter);
-    setDraggedScene(null); // Zorg dat we niet tegelijk een scene slepen
   };
 
-  const onChapterDrop = (targetIndex: number) => {
-    if (!draggedChapter) return;
+  // ==========================================
+  // BLOK 4: DATA FETCHING & SYNC
+  // ==========================================
+  const fetchProjects = useCallback(async () => {
+    const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
+    setProjects(data || []);
+    return data;
+  }, []);
 
-    const newChapters = [...chapters];
-    const currentIndex = newChapters.findIndex(ch => ch.id === draggedChapter.id);
-    
-    // Verplaats het hoofdstuk in de lijst
-    newChapters.splice(currentIndex, 1);
-    newChapters.splice(targetIndex, 0, draggedChapter);
+  const selectProject = async (project: any) => {
+    setSelectedProject(project);
+    try {
+      const { data: chaptersData } = await supabase
+        .from('chapters')
+        .select(`*, scenes (*)`)
+        .eq('project_id', project.id)
+        .order('ord');
 
-    setChapters(newChapters);
-    setIsDirty(true);
-    setDraggedChapter(null);
-  };
-  // 3. Opslaan naar Database
-const saveChanges = async () => {
-  setIsSaving(true);
-  try {
-    // A. UPDATE HOOFDSTUK VOLGORDE
-    // We maken een lijstje van alle hoofdstukken met hun nieuwe 'ord' (plek in de rij)
-    const chapterUpdates = chapters.map((ch, i) => ({
-      id: ch.id,
-      title: ch.title,
-      project_id: ch.project_id, // Zorg dat project_id mee gaat als dat verplicht is
-      ord: i + 1                 // De nieuwe positie: 1, 2, 3...
-    }));
+      const fetchedChapters = chaptersData || [];
+      setChapters(fetchedChapters);
 
-    const { error: chError } = await supabase
-      .from('chapters')
-      .upsert(chapterUpdates, { onConflict: 'id' });
-
-    if (chError) {
-      console.error("Fout bij hoofdstukken:", chError.message);
-      throw new Error("Hoofdstuk volgorde kon niet worden opgeslagen.");
-    }
-
-    // B. UPDATE SCENE VOLGORDE (Je bestaande logica, maar nu als stap 2)
-const updates = chapters.flatMap((ch) =>
-  ch.scenes.map((s: any, i: number) => ({
-    ...s,            // Behoud alle bestaande velden (prose, titel, etc.)
-    chapter_id: ch.id, // Koppel aan het huidige hoofdstuk in de lijst
-    order_index: i,  // Geef de positie binnen het hoofdstuk
-    ord: i           // Back-up volgorde kolom
-  }))
-);
-
-    const { error: scError } = await supabase
-      .from('scenes')
-      .upsert(updates, { onConflict: 'id' });
-
-    if (scError) throw new Error(scError.message);
-
-    setIsDirty(false);
-    alert('Alles succesvol opgeslagen: Hoofdstukken én scènes!');
-  } catch (err: any) {
-    console.error("Volledig foutobject:", err);
-    alert(`Fout bij opslaan: ${err.message || 'Onbekende fout'}`);
-  } finally {
-    setIsSaving(false);
-  }
-};
-
-
-// 1. Jouw originele kleurfunctie (voor de felle accenten)
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'Idee': return 'bg-purple-400';
-    case 'Outline': return 'bg-blue-400';
-    case 'Concept': return 'bg-amber-400';
-    case 'Eerste Versie': return 'bg-stone-500';
-    case 'Redactie': return 'bg-orange-500';
-    case 'Voltooid': return 'bg-green-500';
-    case 'Archief': return 'bg-red-400';
-    default: return 'bg-stone-200';
-  }
-};
-
-// 2. De nieuwe functie voor de lichte kaart-achtergronden
-const getCardStyle = (status: string) => {
-  switch (status) {
-    case 'Idee': return 'bg-purple-50 border-purple-200 text-purple-900';
-    case 'Outline': return 'bg-blue-50 border-blue-200 text-blue-900';
-    case 'Concept': return 'bg-amber-50 border-amber-200 text-amber-900';
-    case 'Eerste Versie': return 'bg-stone-100 border-stone-300 text-stone-900';
-    case 'Redactie': return 'bg-orange-50 border-orange-200 text-orange-900';
-    case 'Voltooid': return 'bg-green-50 border-green-200 text-green-900';
-    case 'Archief': return 'bg-red-50 border-red-200 text-red-900';
-    default: return 'bg-white border-stone-200 text-stone-900';
-  }
-};
-
-const copySelectedForAI = () => {
-  // De nieuwe instructies als header van de kopieerslag
-  let exportText = `Analyseer de volgende scènes op tempo, logica en narratieve spanning.
-Hanteer de volgende spelregels:
-
-1. Behoud de status quo tenzij: Stel alleen een verschuiving voor als de huidige volgorde de spanning doodt, de logica breekt of een emotionele pay-off te vroeg weggeeft.
-2. Toets aan de 'Vise-methode': Wordt de druk op de hoofdpersoon per scène groter? Zo niet, hoe repareren we dat met de minste impact op de tijdlijn?
-3. Tijd-efficiëntie: Is de fysieke tijd (middag/avond) geloofwaardig voor de acties die plaatsvinden?
-4. Keuze-verantwoording: Als je adviseert om de volgorde te behouden, leg dan uit waarom deze opbouw juist sterk is.
-
-Hier zijn de scènes:
-\n# AI ANALYSE VERZOEK - SELECTIE\n\n`;
-  
-  chapters.forEach(chapter => {
-const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
-    if (selectedInChapter.length > 0) {
-      exportText += `## HOOFDSTUK ${chapter.ord}: ${chapter.title || 'Naamloos'}\n`;
-      selectedInChapter.forEach((scene: any) => {
-        exportText += `### SCÈNE: ${scene.title}\n`;
-        exportText += `- POV: ${scene.pov || 'Onbekend'}\n`;
-        exportText += `- Setting: ${scene.setting || 'onbekend'}\n`;
-        exportText += `- Conflict: ${scene.conflict || 'onbekend'}\n`;
-        exportText += `- Context: ${scene.summary || 'Geen samenvatting'}\n\n`;
+      const scenesMap: Record<string, any[]> = {};
+      fetchedChapters.forEach((ch: any) => {
+        if (ch.scenes) {
+          const sortedScenes = [...ch.scenes].sort((a: any, b: any) => (a.ord || 0) - (b.ord || 0));
+          scenesMap[ch.id] = sortedScenes;
+        }
       });
+      setScenes(scenesMap);
+
+      const [charRes, locRes] = await Promise.all([
+        supabase.from('characters').select('*').eq('project_id', project.id).order('name'),
+        supabase.from('locations').select('*').eq('project_id', project.id).order('name')
+      ]);
+
+      setCodexData({ characters: charRes.data || [], locations: locRes.data || [] });
+    } catch (error) {
+      console.error("Fout bij laden project data:", error);
     }
-  });
+  };
 
-  if (selectedSceneIds.size === 0) {
-    alert("Selecteer eerst een paar scènes door de vinkjes aan te zetten.");
-    return;
-  }
+  const updateSceneField = async (sceneId: any, field: string, newValue: any) => {
+    const { error } = await supabase.from('scenes').update({ [field]: newValue }).eq('id', sceneId);
+    if (!error) {
+      setSelectedScene((prev: any) => ({ ...prev, [field]: newValue }));
+      if (selectedScene?.chapter_id) {
+        const chapterId = selectedScene.chapter_id;
+        setScenes((prev: any) => ({
+          ...prev,
+          [chapterId]: (prev[chapterId] || []).map((s: any) => s.id === sceneId ? { ...s, [field]: newValue } : s)
+        }));
+      }
+    }
+  };
 
-  navigator.clipboard.writeText(exportText);
-  alert(`Succes! ${selectedSceneIds.size} scènes inclusief analyse-instructies gekopieerd.`);
-};
+  // ==========================================
+  // BLOK 5: DRAG AND DROP LOGICA (Hoofdstukken)
+  // ==========================================
+  const handleChapterMove = async (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
 
-const exportToWord = (type: 'summary' | 'prose') => {
-  if (selectedSceneIds.size === 0) {
-    alert("Selecteer eerst de scènes die je wilt exporteren via de AI Selectie Modus.");
-    return;
-  }
+    const updatedChapters = [...chapters];
+    const draggedIdx = updatedChapters.findIndex(c => c.id === draggedId);
+    const targetIdx = updatedChapters.findIndex(c => c.id === targetId);
+    if (draggedIdx === -1 || targetIdx === -1) return;
 
-  // Header van het document
-  let content = `
-    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-    <head><meta charset='utf-8'><title>Export Codex</title></head>
-    <body style="font-family: 'Times New Roman', serif;">
-      <h1 style="text-align: center;">Codex Export: ${type === 'summary' ? 'Samenvattingen' : 'Integrale Proza'}</h1>
-      <hr>
-  `;
+    const [removed] = updatedChapters.splice(draggedIdx, 1);
+    updatedChapters.splice(targetIdx, 0, removed);
 
-  // Loop door hoofdstukken en scènes
-  chapters.forEach((chapter) => {
-    const selectedInChapter = chapter.scenes.filter((s: any) => selectedSceneIds.has(s.id));
-    
-    if (selectedInChapter.length > 0) {
-      content += `<h2 style="color: #444; margin-top: 30px;">Hoofdstuk ${chapter.ord}: ${chapter.title || 'Naamloos'}</h2>`;
+    const optimized = updatedChapters.map((ch, index) => ({ ...ch, ord: index + 1 }));
+    setChapters(optimized);
+
+    for (const ch of optimized) {
+      await supabase.from('chapters').update({ ord: ch.ord }).eq('id', ch.id);
+    }
+  };
+
+  const addScene = async (chapterId: string) => {
+    const currentScenes = scenes[chapterId] || [];
+    const { data } = await supabase.from('scenes').insert([{ chapter_id: chapterId, title: 'Nieuwe Scène', purpose: '', ord: currentScenes.length + 1 }]).select();
+    if (data && data[0]) setScenes({ ...scenes, [chapterId]: [...currentScenes, data[0]] });
+  };
+
+  const deleteScene = async (sceneId: string, chapterId: string) => {
+    if (!confirm("Weet je zeker dat je deze scène wilt verwijderen?")) return;
+    const { error } = await supabase.from('scenes').delete().eq('id', sceneId);
+    if (!error) {
+      setScenes((prev: any) => ({ ...prev, [chapterId]: prev[chapterId].filter((s: any) => s.id !== sceneId) }));
+      if (selectedScene?.id === sceneId) setSelectedScene(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Idee': return 'bg-purple-400'; 
+      case 'Outline': return 'bg-blue-400'; 
+      case 'Concept': return 'bg-amber-400';
+      case 'Eerste Versie': return 'bg-stone-500'; 
+      case 'Redactie': return 'bg-orange-500'; 
+      case 'Voltooid': return 'bg-green-500';
+      case 'Archief': return 'bg-red-400'; 
+      default: return 'bg-stone-200';
+    }
+  };
+
+  useEffect(() => {
+    const startup = async () => {
+      const fetchedProjects = await fetchProjects();
+      if (fetchedProjects && fetchedProjects.length > 0) await selectProject(fetchedProjects[0]);
+    };
+    startup();
+  }, []);
+
+  // Bottom Navigation Icons Component
+const NavigationIcons = () => {
+  const hasPrevious = currentSceneIndex > 0;
+  const hasNext = currentSceneIndex !== -1 && currentSceneIndex < orderedScenes.length - 1;
+
+  return (
+    <div className="flex items-center gap-2 md:gap-4 relative z-[90]">
       
-      selectedInChapter.forEach((scene: any, index: number) => {
-        content += `
-          <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-            <h3 style="font-size: 14pt;">Scène ${chapter.ord}.${index + 1}: ${scene.title}</h3>
-            <p style="font-size: 10pt; color: #888;">POV: ${scene.pov || 'Onbekend'} | Setting: ${scene.setting || 'Onbekend'}</p>
-            <div style="margin-top: 10px; line-height: 1.6;">
-              ${type === 'summary' 
-                ? `<p><i>${scene.summary || 'Geen samenvatting beschikbaar.'}</i></p>` 
-                : scene.prose || '<i>(Nog geen proza geschreven voor deze scène)</i>'}
-            </div>
-          </div>
-        `;
-      });
-    }
-  });
+      {/* Pijl Links: Vorige Scène */}
+      <button 
+        onClick={handlePreviousScene}
+        disabled={!hasPrevious}
+        className={`p-2 rounded-md transition-colors ${hasPrevious ? "hover:bg-stone-150 cursor-pointer" : "opacity-20 cursor-not-allowed"}`}
+        style={{ color: hasPrevious ? STELR_THEME.primary : undefined }}
+        title={hasPrevious ? "Vorige scène" : "Eerste scène bereikt"}
+      >
+        <ArrowLeft size={22} />
+      </button>
 
-  content += `</body></html>`;
+      {/* Middelste Knop: Link terug naar de Editor via de gelaagde STELR VEER */}
+      <Link 
+        href="/"
+        className="p-2 rounded-md transition-all duration-300 bg-transparent relative group"
+        title="Wissel naar Schrijf-editor"
+      >
+        <div className="relative w-[22px] h-[22px]">
+          {/* LAAG 1: De basisveer (Subtiele primaire kleur op de achtergrond) */}
+          <OriginalFeatherIcon 
+            size={22} 
+            style={{ color: STELR_THEME.primary }} 
+            className="transition-colors duration-300 opacity-40 group-hover:opacity-100"
+          />
+          
+          {/* LAAG 2: De Modus Overlay (De blokjes lichten op omdat we in Architectuur-modus zitten) */}
+          <SceneBlocksIcon 
+            size={22} 
+            className="absolute top-0 left-0 transition-colors duration-300"
+            style={{ color: STELR_THEME.accent }} 
+          />
+        </div>
+      </Link>
 
-  // Bestand downloaden
-  const fileName = `Export_${type}_${new Date().toISOString().split('T')[0]}.doc`;
-  const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = fileName;
-  link.click();
-};
-
-const toggleChapterSelection = (chapter: any) => {
-  const sceneIdsInChapter = chapter.scenes.map((s: any) => s.id);
-  const newSelection = new Set(selectedSceneIds);
-  
-  // Check of alle scenes van dit hoofdstuk al geselecteerd zijn
-  const allSelected = sceneIdsInChapter.every((id: string) => selectedSceneIds.has(id));
-
-  if (allSelected) {
-    // Deselecteer alles van dit hoofdstuk
-    sceneIdsInChapter.forEach((id: string) => newSelection.delete(id));
-  } else {
-    // Selecteer alles van dit hoofdstuk
-    sceneIdsInChapter.forEach((id: string) => newSelection.add(id));
-  }
-
-  setSelectedSceneIds(newSelection);
-};
-
-
-
-// Functie om alleen de schrijfstijl op te slaan
-const saveWritingStyle = async () => {
-  if (!selectedProject) return;
-  setIsSaving(true);
-  try {
-    const { error } = await supabase
-      .from('projects')
-      .update({ writing_style: writingStyle })
-      .eq('id', selectedProject.id);
-
-    if (error) throw error;
-    
-    // Update lokale state zodat het project-object ook weer klopt
-    setSelectedProject({ ...selectedProject, writing_style: writingStyle });
-    setIsSettingsOpen(false);
-    alert("Schrijfstijl succesvol bijgewerkt!");
-  } catch (err: any) {
-    alert("Fout bij opslaan: " + err.message);
-  } finally {
-    setIsSaving(false);
-  }
-};
-
-return (
-  <div className="flex h-screen bg-stone-100 font-sans text-stone-900 overflow-hidden">
-    
-    {/* 1. DE ZIJBALK (Deze staat goed) */}
-    <aside className="w-20 bg-stone-900 flex flex-col items-center py-6 gap-8 border-r border-stone-800 h-screen flex-shrink-0">
-<Link 
-  href="/" 
-  title="Terug naar Editor"
-  onClick={(e) => {
-    e.preventDefault(); // Voorkom de standaard Next.js navigatie
-    window.location.href = "/"; // Forceer een volledige pagina-herlaad
-  }}
->
-  <div className="p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer">
-    <Edit3 size={24} />
-  </div>
-</Link>
-      <div className="flex flex-col gap-6">
+      {/* Link 3: Sparkle met AI Submenu */}
+      <div className="relative">
         <button 
-    onClick={() => setIsSettingsOpen(true)}
-    title="Manuscript Stijl Instellingen"
-    className="mt-auto p-3 rounded-xl text-stone-500 hover:text-white hover:bg-stone-800 transition-all cursor-pointer mb-4"
-  >
-    <Settings size={24} />
-  </button>
-      </div>
-    </aside>
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            const nextState = !isAiMenuOpen; 
+            setIsAiMenuOpen(nextState); 
+            if (nextState) setIsMainMenuOpen(false);
+          }}
+          className={`p-2 rounded-md transition-colors ${isAiMenuOpen ? "text-purple-600 bg-purple-50" : "hover:bg-stone-150"}`}
+          style={{ color: isAiMenuOpen ? undefined : STELR_THEME.primary }}
+          title="AI Prompts"
+        >
+          <Sparkles size={22} />
+        </button>
 
-    {/* 2. DE NIEUWE WRAPPER VOOR DE INHOUD */}
-    <main className="flex-1 flex flex-col overflow-hidden p-10">
-      
-      {/* Header (Blijft bovenin staan) */}
-<div className="flex justify-between items-center mb-10 border-b border-stone-200 pb-6 flex-shrink-0">
-  {/* Linkerkant: Info */}
-  <div>
-    <h1 className="text-3xl font-serif font-bold text-stone-900">Architectuur</h1>
-    <p className="text-stone-500 italic text-sm">Sleep scènes om te schuiven, of gebruik de AI Selectie voor advies.</p>
-  </div>
-  
-  {/* Rechterkant: Beide functies naast elkaar */}
-  <div className="flex gap-4 items-center">
-    
-    {/* GROEP 1: AI FUNCTIES */}
-    <div className="flex gap-2 bg-stone-100 p-1.5 rounded-full border border-stone-200">
-      <button 
-        onClick={() => setIsSelectionMode(!isSelectionMode)}
-        className={`px-4 py-1.5 rounded-full font-bold text-[11px] transition-all ${
-          isSelectionMode 
-            ? 'bg-orange-800 text-white shadow-inner' 
-            : 'bg-white text-stone-600 hover:bg-stone-50'
-        }`}
-      >
-        {isSelectionMode ? 'Selectie stoppen' : 'AI Selectie Modus'}
-      </button>
-
-{isSelectionMode && (
-  <div className="flex gap-2 animate-in fade-in slide-in-from-right-4">
-    {/* Bestaande AI Knop */}
-    <button 
-      onClick={copySelectedForAI}
-      className="bg-stone-900 text-white px-4 py-1.5 rounded-full font-bold text-[11px] shadow-md hover:bg-black transition-all flex items-center gap-2"
-    >
-      <Share2 size={12} /> Voor Gemini
-    </button>
-
-    {/* NIEUW: Word Export Samenvatting */}
-    <button 
-      onClick={() => exportToWord('summary')}
-      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
-    >
-      <Layout size={12} /> Word (Samenvatting)
-    </button>
-
-    {/* NIEUW: Word Export Proza */}
-    <button 
-      onClick={() => exportToWord('prose')}
-      className="bg-white border border-stone-300 text-stone-700 px-4 py-1.5 rounded-full font-bold text-[11px] shadow-sm hover:bg-stone-50 transition-all flex items-center gap-2"
-    >
-      <Edit3 size={12} /> Word (Proza)
-    </button>
-  </div>
-)}
-    </div>
-
-    {/* GROEP 2: OPSLAAN (Alleen bij wijziging) */}
-    {isDirty && (
-      <button 
-        onClick={saveChanges}
-        disabled={isSaving}
-        className="flex items-center gap-2 bg-orange-800 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-900 transition-all scale-105 text-xs"
-      >
-        <Save size={16} />
-        {isSaving ? 'Bezig...' : 'Structuur Vastleggen'}
-      </button>
-    )}
-  </div>
-</div>
-
-      {/* 3. HET SCROLLBARE BOARD (Vangnet + Hoofdstukken) */}
-      <div className="flex-1 flex gap-6 overflow-x-auto pb-10 items-start">
-        
-        {/* De Hoofdstukken */}
-{chapters.map((chapter, idx) => (
-          <div 
-            key={chapter.id} 
-            // 1. De hoofddiv is niet meer draggable om scenes de ruimte te geven
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (draggedChapter) {
-                onChapterDrop(idx);
-              } else if (draggedScene) {
-                onDrop(chapter.id, chapter.scenes.length);
-              }
-            }}
-            className={`w-80 flex-shrink-0 bg-stone-200/50 p-4 rounded-2xl border-2 transition-all duration-200 ${
-              draggedChapter?.id === chapter.id 
-                ? 'opacity-20 border-dashed border-orange-400 scale-95' 
-                : 'border-stone-200'
-            }`}
-          >
-            <div className="mb-4 px-2">
-              <div className="flex items-center gap-2 mb-1">
-                {/* 2. Alleen de badge is draggable: de 'Handgreep' */}
-                <div 
-                  draggable={!isSelectionMode}
-                  onDragStart={(e) => {
-                    e.stopPropagation(); // Voorkom dat scenes mee-draggen
-                    onChapterDragStart(chapter);
-                  }}
-                  onClick={() => isSelectionMode && toggleChapterSelection(chapter)}
-                  className={`flex items-center gap-2 px-2 py-0.5 rounded shadow-sm uppercase tracking-tighter transition-all cursor-grab active:cursor-grabbing ${
-                    isSelectionMode 
-                      ? 'hover:bg-orange-700 bg-orange-800' 
-                      : 'bg-orange-800'
-                  } text-white`}
-                >
-                  {/* Grip icoon voor visuele feedback */}
-                  {!isSelectionMode && <GripVertical size={12} className="opacity-50" />}
-                  
-                  {isSelectionMode && (
-                    <div className={`w-3 h-3 rounded-sm border border-white/40 flex items-center justify-center transition-colors ${
-                      chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) 
-                      ? 'bg-white' 
-                      : 'bg-transparent'
-                    }`}>
-                      {chapter.scenes.length > 0 && chapter.scenes.every((s: any) => selectedSceneIds.has(s.id)) && (
-                        <div className="w-1.5 h-1.5 bg-orange-800 rounded-full" />
-                      )}
-                    </div>
-                  )}
-                  <span className="text-[10px] font-black">
-                    Hoofdstuk {chapter.ord}
-                  </span>
-                </div>
-              </div>
-
-              <h3 className="font-serif font-bold text-stone-800 text-lg leading-tight">
-                {chapter.title || "Naamloos"}
-              </h3>
+        {/* AI Prompts Submenu */}
+        {isAiMenuOpen && (
+          <div className="absolute bottom-14 right-0 md:bottom-auto md:top-12 w-48 bg-white border border-[var(--stelr-primary)]/10 rounded-md shadow-xl py-1.5 z-[100] pointer-events-auto">
+            <div className="px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-[var(--stelr-accent)] border-b border-[var(--stelr-primary)]/5 mb-1">
+              AI Schrijfhulp
             </div>
+            <button onClick={() => { alert("Brainstormen..."); setIsAiMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-stone-700 hover:bg-stone-50">Brainstorm ideeën</button>
+            <button onClick={() => { alert("Structuur controleren..."); setIsAiMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-stone-700 hover:bg-stone-50">Controleer plottempo</button>
+            <button onClick={() => { alert("Samenvatten..."); setIsAiMenuOpen(false); }} className="w-full text-left px-3 py-2 text-xs text-stone-700 hover:bg-stone-50">Genereer scène-outline</button>
+          </div>
+        )}
+      </div>
 
-            {/* SCENES CONTAINER */}
-            <div className="space-y-3 min-h-[100px] bg-stone-100/30 rounded-xl p-2">
-              {chapter.scenes && chapter.scenes.length > 0 ? (
-                chapter.scenes.map((scene: any, sIdx: number) => (
-                  <div
-                    key={scene.id}
-                    draggable
-                    onDragStart={() => handleDragStart(scene)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { 
-                      e.stopPropagation(); 
-                      onDrop(chapter.id, sIdx); 
-                    }}
-                    className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${getCardStyle(scene.status)}`}
-                  >
-                    {isSelectionMode && (
-                      <div className="absolute top-3 left-3 z-20">
-                        <input 
-                          type="checkbox" 
-                          className="w-5 h-5 cursor-pointer accent-orange-800 border-2 border-orange-800 rounded shadow-md"
-                          checked={selectedSceneIds.has(scene.id)}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            const newSelected = new Set(selectedSceneIds);
-                            if (newSelected.has(scene.id)) newSelected.delete(scene.id);
-                            else newSelected.add(scene.id);
-setSelectedSceneIds(newSelected);
-                          }}
-                        />
+      {/* Pijl Rechts: Volgende Scène */}
+      <button 
+        onClick={handleNextScene}
+        disabled={!hasNext}
+        className={`p-2 rounded-md transition-colors ${hasNext ? "hover:bg-stone-150 cursor-pointer" : "opacity-20 cursor-not-allowed"}`}
+        style={{ color: hasNext ? STELR_THEME.primary : undefined }}
+        title={hasNext ? "Volgende scène" : "Laatste scène bereikt"}
+      >
+        <ArrowRight size={22} />
+      </button>
+
+    </div>
+  );
+};
+
+  // ==========================================
+  // BLOK 7: INTERFACE RENDER (JSX)
+  // ==========================================
+  return (
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        '--stelr-bg': '#e9eae5',
+        '--stelr-primary': '#334a56',
+        '--stelr-accent': '#888268',
+      } as React.CSSProperties}
+      className="flex flex-col h-screen bg-[var(--stelr-bg)] text-[var(--stelr-primary)] font-sans overflow-hidden select-none"
+    >
+      
+      {/* APP HEADER */}
+      <header className="h-16 border-b border-[var(--stelr-primary)]/10 bg-white flex items-center px-4 justify-between shadow-sm shrink-0 w-full relative z-40">
+        <div className="flex items-center gap-3 flex-1">
+          <img src="/images/StelrLogo.png" alt="STELR Logo" className="h-9 md:h-12 w-auto object-contain" />
+        </div>
+
+        <div className="flex flex-col items-center text-center">
+          <span className="block text-[9px] md:text-[10px] uppercase tracking-widest text-[var(--stelr-primary)]/40 font-bold leading-none mb-1">
+            {selectedProject ? selectedProject.title : "Geen manuscript"}
+          </span>
+          <h1 className="font-serif italic font-semibold text-[var(--stelr-primary)] text-sm md:text-base leading-tight">
+            Manuscript Architectuur
+          </h1>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 flex-1">
+          <div className="hidden md:block">
+            <NavigationIcons />
+          </div>
+          <button 
+            onClick={() => setIsMainMenuOpen(!isMainMenuOpen)} 
+            className="p-2 text-[var(--stelr-primary)] hover:bg-[var(--stelr-primary)]/5 rounded-md transition-colors"
+          >
+            {isMainMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+
+          {isMainMenuOpen && (
+            <div className="absolute right-0 top-12 w-56 bg-white border border-[var(--stelr-primary)]/10 rounded-md shadow-xl py-2 z-[70]">
+              <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--stelr-accent)] border-b border-[var(--stelr-primary)]/5 mb-1">
+                STELR Writer
+              </div>
+              <Link href="/" className="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--stelr-primary)]/5">
+                <ArrowLeft size={16} className="text-[var(--stelr-primary)]/50" />
+                <span>Terug naar editor</span>
+              </Link>
+              <Link href="/wereldbeheer" className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--stelr-primary)]/5">
+                <Globe size={16} className="text-[var(--stelr-accent)]" />
+                <span>Wereldbeheer</span>
+              </Link>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* WORKSPACE BODY */}
+      <div className="flex-1 flex overflow-hidden relative w-full">
+        
+        {isRightSidebarOpen && <div onClick={() => setIsRightSidebarOpen(false)} className="fixed inset-0 bg-[var(--stelr-primary)]/20 backdrop-blur-xs z-40 xl:hidden" />}
+
+        {/* MIDDENVELD (HET PRIKBORD / ACCORDION) */}
+        <section className="flex-1 p-4 md:p-6 overflow-y-auto lg:overflow-y-hidden lg:overflow-x-auto h-full w-full">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
+            
+            {chapters.map((c) => {
+              const isChapterOpenOnMobile = mobileExpandedChapters[c.id] ?? false;
+              const chapterScenes = scenes[c.id] || [];
+
+              return (
+                <div 
+                  key={c.id}
+                  draggable={false}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => {
+                    if (draggedChapter && draggedChapter !== c.id) {
+                      handleChapterMove(draggedChapter, c.id);
+                      setDraggedChapter(null);
+                    }
+                  }}
+                  className="w-full lg:w-80 flex-shrink-0 bg-white lg:bg-stone-50/50 p-2 lg:p-4 rounded-xl border border-[var(--stelr-primary)]/10 shadow-sm"
+                >
+                  {/* HOOFDSTUK HEADER */}
+                  <div className="flex items-center justify-between p-2 bg-stone-50 lg:bg-transparent rounded-lg lg:rounded-none">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* Grip handle voor verplaatsen */}
+                      <div 
+                        draggable
+                        onDragStart={() => setDraggedChapter(c.id)}
+                        onDragEnd={() => setDraggedChapter(null)}
+                        className="p-1 cursor-grab text-[var(--stelr-primary)]/40 hover:text-[var(--stelr-primary)] active:cursor-grabbing"
+                      >
+                        <GripVertical size={16} />
+                      </div>
+                      
+                      <button 
+                        onClick={() => setMobileExpandedChapters(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                        className="text-left font-serif font-bold text-sm lg:text-base text-[var(--stelr-primary)] truncate flex-1"
+                      >
+                        H{c.ord}: {c.title}
+                        <span className="lg:hidden text-[10px] text-[var(--stelr-primary)]/40 ml-2">({chapterScenes.length})</span>
+                      </button>
+                    </div>
+                    
+                    <button 
+                      onClick={() => setMobileExpandedChapters(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                      className="lg:hidden p-1 text-[var(--stelr-primary)]/60"
+                    >
+                      <ChevronDown size={16} className={`transition-transform duration-200 ${isChapterOpenOnMobile ? "" : "-rotate-90"}`} />
+                    </button>
+                  </div>
+
+                  {/* SCÈNES (Zichtbaar op desktop, óf opengeklapt op mobiel) */}
+                  <div className={`${isChapterOpenOnMobile ? "block" : "hidden lg:block"} mt-3 space-y-2 pl-2 lg:pl-0`}>
+                    {chapterScenes.length > 0 ? (
+                      chapterScenes.map((s: any) => {
+                        const isCardSelected = selectedScene?.id === s.id;
+                        const isMobileCardDetailed = mobileActiveSceneCard === s.id;
+
+                        return (
+                          <div 
+                            key={s.id}
+                            onClick={() => {
+                              setSelectedScene(s);
+                              setMobileActiveSceneCard(isMobileCardDetailed ? null : s.id);
+                            }}
+                            className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                              isCardSelected 
+                                ? "border-[var(--stelr-accent)] bg-[var(--stelr-accent)]/5 shadow-sm" 
+                                : "border-[var(--stelr-primary)]/10 bg-white hover:border-[var(--stelr-primary)]/30"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-bold text-[var(--stelr-primary)] truncate">{s.title}</span>
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${getStatusColor(s.status)}`} />
+                            </div>
+
+                            {/* COMPACTE DETAILSTAND (Bij klik op mobiel, altijd op desktop) */}
+                            <div className={`${isMobileCardDetailed ? "block" : "hidden lg:block"} mt-2 pt-2 border-t border-[var(--stelr-primary)]/5 space-y-2`}>
+                              <p className="text-[11px] text-[var(--stelr-primary)]/70 italic line-clamp-2 leading-relaxed">
+                                {s.purpose || "Geen doelsamenvatting..."}
+                              </p>
+
+                              <div className="flex flex-wrap gap-1.5 pt-1 text-[9px] font-mono font-bold text-[var(--stelr-primary)]/60">
+                                <span className="bg-stone-100 px-1.5 py-0.5 rounded">👤 {s.character_id ? "POV Gekoppeld" : "Geen POV"}</span>
+                                <span className="bg-stone-100 px-1.5 py-0.5 rounded">📍 {s.location_id ? "Locatie Gekoppeld" : "Geen Locatie"}</span>
+                              </div>
+
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const targetChId = prompt(`Verplaats "${s.title}" naar Hoofdstuk nummer:`);
+                                  if (!targetChId) return;
+                                  const targetCh = chapters.find(ch => ch.ord === parseInt(targetChId));
+                                  if (targetCh) {
+                                    supabase.from('scenes').update({ chapter_id: targetCh.id }).eq('id', s.id)
+                                      .then(() => selectProject(selectedProject));
+                                  } else {
+                                    alert("Hoofdstuk niet gevonden.");
+                                  }
+                                }}
+                                className="block lg:hidden w-full mt-2 text-center text-[10px] font-bold bg-[var(--stelr-primary)]/5 text-[var(--stelr-primary)] py-1 rounded"
+                              >
+                                ↕️ Verplaats Scène
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-4 text-[10px] text-[var(--stelr-primary)]/40 italic border border-dashed border-[var(--stelr-primary)]/10 rounded-lg">
+                        Geen scènes
                       </div>
                     )}
-                    <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full shadow-sm ${getStatusColor(scene.status)}`} />
                     
-                    <p className={`text-sm font-bold mb-1 pr-6 leading-tight ${isSelectionMode ? 'pl-7' : ''}`}>
-                      {scene.title}
-                    </p>
-
-                    <details className="cursor-pointer mb-3 outline-none">
-                      <summary className="list-none outline-none">
-                        <p className="text-[10px] opacity-80 line-clamp-3 italic font-medium">
-                          {scene.summary || "Geen samenvatting..."}
-                        </p>
-                        <span className="text-[9px] text-orange-800 font-bold">
-                          [ Klik voor volledige tekst ]
-                        </span>
-                      </summary>
-                      <div className="text-[10px] text-stone-700 leading-relaxed pt-2 mt-2 border-t border-orange-200/30">
-                        <p className="italic">{scene.summary}</p>
-                        <p className="text-[9px] text-stone-400 font-bold mt-2 uppercase tracking-tighter">
-                          [ Klik hierboven om te sluiten ]
-                        </p>
-                      </div>
-                    </details>
-
-                    <div className="flex flex-wrap gap-2 pt-2 border-t border-black/5">
-                      {scene.pov && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">👤 {scene.pov}</span>}
-                      {scene.setting && <span className="text-[9px] font-bold bg-white/50 px-2 py-0.5 rounded">📍 {scene.setting}</span>}
-                    </div>
+                    <button 
+                      onClick={() => addScene(c.id)}
+                      className="w-full text-center py-1.5 text-[10px] font-bold text-[var(--stelr-primary)]/40 border border-dashed border-[var(--stelr-primary)]/10 rounded-lg hover:text-[var(--stelr-accent)] transition-colors"
+                    >
+                      + Scène Toevoegen
+                    </button>
                   </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-[10px] text-stone-400 italic border-2 border-dashed border-stone-200 rounded-xl">
-                  Sleep scènes hierheen
                 </div>
-              )}
-            </div>
+              );
+            })}
+
           </div>
-        ))}
-      </div>
-    </main>
-    {/* MODAL VOOR SCHRIJFSTIJL INSTELLINGEN */}
-{isSettingsOpen && (
-  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div className="bg-stone-100 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-stone-300 animate-in fade-in zoom-in duration-200">
-      
-      {/* Header */}
-      <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-white">
-        <div>
-          <h2 className="text-xl font-serif font-bold text-stone-900 flex items-center gap-2">
-            <Settings size={20} className="text-stone-400" />
-            Manuscript Schrijfstijl
-          </h2>
-          <p className="text-xs text-stone-500 mt-1">
-            Project: <span className="font-bold text-stone-700">{selectedProject?.title || "Laden..."}</span>
-          </p>
-        </div>
-        <button 
-          onClick={() => setIsSettingsOpen(false)} 
-          className="p-2 hover:bg-stone-100 rounded-full transition-colors text-stone-400"
-        >
-          <X size={24} />
-        </button>
+        </section>
+
+        {/* RECHTER SIDEBAR (VOLLEDIGE SCÈNEKAART - SWIPE LINKS) */}
+        <aside className={`
+          fixed inset-y-0 right-0 w-80 border-l border-[var(--stelr-primary)]/10 bg-white flex flex-col h-full z-50 transition-transform duration-300 ease-in-out pt-16 xl:pt-0 shadow-xl xl:shadow-none
+          xl:relative xl:translate-x-0 ${isRightSidebarOpen ? "translate-x-0" : "translate-x-full"}
+        `}>
+          <div className="p-3 border-b border-[var(--stelr-primary)]/10 bg-[var(--stelr-bg)]/40 text-[10px] font-bold uppercase tracking-wider text-[var(--stelr-primary)]/60 flex justify-between items-center">
+            <span>Volledige Scènekaart</span>
+            <button onClick={() => setIsRightSidebarOpen(false)} className="xl:hidden p-1 text-[var(--stelr-primary)]/60"><X size={14} /></button>
+          </div>
+
+          <div className="p-4 flex-1 overflow-y-auto text-sm space-y-4 select-text">
+            {selectedScene ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Titel</label>
+                  <input type="text" value={selectedScene.title || ""} onChange={(e) => updateSceneField(selectedScene.id, 'title', e.target.value)} className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded focus:outline-none" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Status</label>
+                  <select value={selectedScene.status || "Idee"} onChange={(e) => updateSceneField(selectedScene.id, 'status', e.target.value)} className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded focus:outline-none">
+                    {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">POV Personage</label>
+                  <select value={selectedScene.character_id || ""} onChange={(e) => updateSceneField(selectedScene.id, 'character_id', e.target.value || null)} className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded focus:outline-none">
+                    <option value="">— Kies POV —</option>
+                    {codexData.characters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Locatie</label>
+                  <select value={selectedScene.location_id || ""} onChange={(e) => updateSceneField(selectedScene.id, 'location_id', e.target.value || null)} className="w-full text-xs mt-1 p-1.5 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded focus:outline-none">
+                    <option value="">— Kies Locatie —</option>
+                    {codexData.locations.map((l: any) => <option key={l.id} value={l.id}>📍 {l.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Doel van scène (Synopsis)</label>
+                  <textarea value={selectedScene.purpose || ""} onChange={(e) => updateSceneField(selectedScene.id, 'purpose', e.target.value)} className="w-full text-xs mt-1 p-2 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded h-24 resize-none focus:outline-none" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[var(--stelr-primary)]/40">Conflict</label>
+                  <textarea value={selectedScene.conflict || ""} onChange={(e) => updateSceneField(selectedScene.id, 'conflict', e.target.value)} className="w-full text-xs mt-1 p-2 bg-[var(--stelr-bg)]/30 border border-[var(--stelr-primary)]/10 rounded h-24 resize-none focus:outline-none" />
+                </div>
+
+                <div className="pt-2 border-t border-stone-100 flex justify-between items-center">
+                  <Link href="/" className="text-xs text-[var(--stelr-accent)] font-bold hover:underline">✍️ Open in Editor</Link>
+                  <button onClick={() => deleteScene(selectedScene.id, selectedScene.chapter_id)} className="text-xs text-red-500 flex items-center gap-1 hover:underline"><Trash2 size={12} /> Verwijderen</button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-[var(--stelr-primary)]/40 italic text-xs text-center pt-8">
+                Tik op een scène of swipe naar links om gedetailleerde plotgegevens te bekijken en te bewerken.
+              </div>
+            )}
+          </div>
+        </aside>
+
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-6">
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
-          <h4 className="text-[11px] font-bold text-amber-900 uppercase tracking-widest mb-1">Instructie voor de AI</h4>
-          <p className="text-[11px] text-amber-800 leading-relaxed">
-            Plak hier de specifieke <strong>STAP 1: ANALYSE</strong> en <strong>STAP 2: RICHTLIJNEN</strong>. 
-            Deze tekst fungeert als het 'DNA' van je manuscript en wordt bij elke proza-generatie meegestuurd naar Gemini.
-          </p>
-        </div>
-        
-        <div className="relative">
-          <textarea
-            value={writingStyle}
-            onChange={(e) => setWritingStyle(e.target.value)}
-            className="w-full h-[50vh] p-6 bg-white border border-stone-300 rounded-2xl font-mono text-xs leading-relaxed focus:ring-2 focus:ring-orange-800 focus:border-transparent outline-none shadow-inner resize-none"
-            placeholder="Bijv: ### STAP 1: ANALYSE (Verplicht)..."
-          />
-          <div className="absolute bottom-4 right-6 text-[10px] text-stone-400 font-mono">
-            {writingStyle.length} karakters
-          </div>
-        </div>
+      {/* MOBIELE NAVIGATIEBALK ONDERAAN */}
+      <div className="md:hidden h-16 bg-white border-t border-[var(--stelr-primary)]/10 flex items-center justify-around px-4 shadow-[0_-2px_10px_rgba(0,0,0,0.02)] z-40">
+        <NavigationIcons />
       </div>
 
-      {/* Footer */}
-      <div className="p-6 bg-stone-50 border-t border-stone-200 flex justify-end gap-3">
-        <button 
-          onClick={() => setIsSettingsOpen(false)}
-          className="px-6 py-2.5 rounded-full font-bold text-xs text-stone-500 hover:bg-stone-200 transition-all"
-        >
-          Annuleren
-        </button>
-        <button 
-          onClick={saveWritingStyle}
-          disabled={isSaving}
-          className="bg-orange-800 text-white px-8 py-2.5 rounded-full font-bold text-xs shadow-lg hover:bg-orange-900 transition-all flex items-center gap-2"
-        >
-          {isSaving ? 'Bezig met opslaan...' : 'Stijl Vastleggen'}
-        </button>
-      </div>
     </div>
-  </div>
-)}
-  </div>
-);
-} // Deze sluit de export default function ArchitectuurPage
+  );
+}
